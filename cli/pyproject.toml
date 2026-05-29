@@ -1,0 +1,31 @@
+[project]
+name = "apass"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Nikita Shmakov",email = "nikshmakov@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "typer>=0.15,<1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<9",
+    "pytest-mock>=3,<4",
+]
+
+[project.scripts]
+apass = "apass.cli:app"
+
+[tool.poetry]
+packages = [{include = "apass", from = "src"}]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

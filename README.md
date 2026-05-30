@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.png" alt="APass logo" width="400"></p>
+
 # APass
 
 A dead-simple cross-platform password manager.

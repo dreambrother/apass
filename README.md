@@ -10,8 +10,7 @@ A dead-simple cross-platform password manager.
 
 | Feature                    | Status       |
 | -------------------------- | ------------ |
-| Password generation        | Done         |
-| Copy to clipboard          | Done         |
+| Password generation        | In progress  |
 | Password storage           | In progress  |
 | Password rotation          | Planned      |
 | Cloud sync                 | Planned      |

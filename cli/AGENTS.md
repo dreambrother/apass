@@ -33,4 +33,4 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
 - **Python >= 3.14 required** — non-standard, bleeding edge.
 - **Poetry 2.x**, build system `poetry-core>=2.0.0`. Source layout: `src/apass/`.
 - **No linter, typechecker, or formatter configured.** No CI/CD.
-- Tests use `pytest-mock` (`MockerFixture`).
+- Tests use `CliRunner` (Typer) + `unittest.mock` (stdlib), no extra mocking library.

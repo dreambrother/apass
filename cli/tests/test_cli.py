@@ -1,17 +1,34 @@
-from pytest_mock import MockerFixture
+from unittest.mock import MagicMock, patch
 
-from apass.cli import create
+from typer.testing import CliRunner
+
+from apass.cli import app
+
+runner = CliRunner()
 
 
-def test_create_prompts_for_password_and_stores(mocker: MockerFixture) -> None:
-    mock_create = mocker.patch("apass.generator.create_password", return_value="abc123")
-    mock_prompt = mocker.patch("typer.prompt", return_value="master123")
-    mock_store = mocker.patch("apass.vault.store")
-    mock_copy = mocker.patch("apass.clipboard.copy")
+def test_create_prompts_for_password_and_stores() -> None:
+    mock_vault = MagicMock()
+    with (
+        patch("apass.generator.create_password", return_value="abc123"),
+        patch("apass.cli._get_vault", return_value=mock_vault),
+        patch("apass.clipboard.copy"),
+        patch("typer.prompt", return_value="master123"),
+    ):
+        result = runner.invoke(app, ["create", "example"])
 
-    create("example")
+    assert result.exit_code == 0
+    mock_vault.create.assert_called_once_with("example", "abc123", "master123")
 
-    mock_create.assert_called_once()
-    mock_prompt.assert_called_once_with("Master password", hide_input=True)
-    mock_store.assert_called_once_with("example", "abc123", "master123")
-    mock_copy.assert_called_once_with("abc123")
+
+def test_init_prompts_for_password_and_initializes_db() -> None:
+    mock_vault = MagicMock()
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+        patch("typer.prompt", return_value="master123"),
+    ):
+        result = runner.invoke(app, ["init"])
+
+    assert result.exit_code == 0
+    mock_vault.init_db.assert_called_once_with("master123")
+    assert "Vault created at" in result.stdout

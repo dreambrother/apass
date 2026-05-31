@@ -9,6 +9,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "typer>=0.15,<1",
+    "cryptography>=48,<49",
 ]
 
 [tool.pytest.ini_options]

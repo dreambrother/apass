@@ -1,6 +1,9 @@
+import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+
+from apass.crypto import decrypt, encrypt
 
 CURRENT_DB_VERSION: str = "1.0"
 
@@ -14,7 +17,7 @@ class Vault:
     ) -> None:
         db = self._read_db(user_password)
         if any(service_name == entry.name for entry in db.entries):
-            raise EnvironmentError(f"Entry for {service_name} already exists")
+            raise EntryAlreadyExistsError(service_name)
 
         db.entries.append(
             PasswordEntry(service_name, service_password, int(time.time()))
@@ -26,10 +29,23 @@ class Vault:
         self._store_db(db, user_password)
 
     def _read_db(self, user_password: str) -> PasswordDB:
-        return PasswordDB()
+        if not self._vault_file.exists():
+            return PasswordDB()
+        payload = self._vault_file.read_bytes()
+        plaintext = decrypt(payload, user_password)
+        if plaintext is None:
+            raise WrongPasswordError()
+        data = json.loads(plaintext)
+        return PasswordDB(
+            ver=data["ver"],
+            entries=[PasswordEntry(**e) for e in data["entries"]],
+        )
 
     def _store_db(self, db: PasswordDB, user_password: str) -> None:
-        pass
+        plaintext = json.dumps(asdict(db), ensure_ascii=False).encode("utf-8")
+        payload = encrypt(plaintext, user_password)
+        self._vault_file.parent.mkdir(parents=True, exist_ok=True)
+        self._vault_file.write_bytes(payload)
 
 
 @dataclass
@@ -46,4 +62,11 @@ class PasswordEntry:
 
 
 class EntryAlreadyExistsError(Exception):
-    pass
+    def __init__(self, entry_name: str) -> None:
+        self.entry_name = entry_name
+        super().__init__(f"Entry for {entry_name!r} already exists")
+
+
+class WrongPasswordError(Exception):
+    def __init__(self) -> None:
+        super().__init__("Wrong password or corrupted vault")

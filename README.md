@@ -2,7 +2,7 @@
 
 # APass
 
-A dead-simple cross-platform password manager.
+A dead-simple cross-platform **A**nother **P**assword manager.
 
 ## Status
 

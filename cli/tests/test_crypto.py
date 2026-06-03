@@ -1,10 +1,12 @@
-"""Integration tests for the crypto module — own encrypt/decrypt round-trip."""
+"""Integration tests for the crypto module — encrypt/decrypt round-trip."""
 
 import pytest
 
 from apass.crypto import (
     AAD,
     PAYLOAD_VERSION,
+    DecryptionError,
+    VaultStructureError,
     decrypt,
     encrypt,
 )
@@ -17,21 +19,43 @@ def test_round_trip() -> None:
     assert decrypt(ciphertext, password) == plaintext
 
 
-def test_wrong_password_returns_none() -> None:
+def test_wrong_password_raises_decryption_error() -> None:
     ciphertext = encrypt(b"secret", "right-password")
-    assert decrypt(ciphertext, "wrong-password") is None
+    with pytest.raises(DecryptionError):
+        decrypt(ciphertext, "wrong-password")
 
 
-def test_tampered_ciphertext_returns_none() -> None:
+def test_tampered_ciphertext_raises_decryption_error() -> None:
     ciphertext = encrypt(b"secret", "password")
     mutated = bytearray(ciphertext)
-    # Flip a bit deep inside the ciphertext region (after version, salt, params, nonce).
+    # Flip a bit deep inside the ciphertext region.
     mutated[-3] ^= 0x01
-    assert decrypt(bytes(mutated), "password") is None
+    with pytest.raises(DecryptionError):
+        decrypt(bytes(mutated), "password")
 
 
-def test_short_payload_returns_none() -> None:
-    assert decrypt(b"short", "password") is None
+def test_short_payload_raises_structure_error() -> None:
+    with pytest.raises(VaultStructureError, match="Payload too short"):
+        decrypt(b"short", "password")
+
+
+def test_wrong_version_raises_structure_error() -> None:
+    ciphertext = encrypt(b"data", "pass")
+    mutated = bytearray(ciphertext)
+    mutated[0] = 99  # unsupported version
+    with pytest.raises(VaultStructureError, match="Unsupported payload version"):
+        decrypt(bytes(mutated), "pass")
+
+
+def test_bad_kdf_json_raises_structure_error() -> None:
+    ciphertext = encrypt(b"data", "pass")
+    mutated = bytearray(ciphertext)
+    # Corrupt the KDF params JSON length prefix to point into garbage.
+    pos = 1 + 16  # version + salt
+    mutated[pos] = 0xFF
+    mutated[pos + 1] = 0xFF
+    with pytest.raises(VaultStructureError):
+        decrypt(bytes(mutated), "pass")
 
 
 def test_version_byte_is_present() -> None:
@@ -46,8 +70,8 @@ def test_aad_is_bound() -> None:
     import apass.crypto as crypto_module
     original_aad = crypto_module.AAD
     try:
-        # Simulate a future version with a different AAD.
         crypto_module.AAD = b"apass-v2"
-        assert decrypt(ciphertext, "pass") is None
+        with pytest.raises(DecryptionError):
+            decrypt(ciphertext, "pass")
     finally:
         crypto_module.AAD = original_aad

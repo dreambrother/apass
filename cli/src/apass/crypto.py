@@ -1,6 +1,7 @@
 import json
 import os
 import struct
+from typing import NamedTuple
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -28,6 +29,20 @@ AAD = b"apass-v1"
 
 # Minimum viable payload size (version + salt + empty params + nonce + GCM tag).
 _MIN_PAYLOAD_SIZE = 1 + SALT_LENGTH + KDF_PARAMS_LEN_SIZE + 2 + NONCE_LENGTH + 16
+
+# Required keys in the KDF params JSON block.
+_REQUIRED_KDF_KEYS = frozenset({"iterations", "memory_cost", "lanes"})
+
+# Safety limits — reject payloads / plaintext that cannot be legitimate.
+_MAX_PAYLOAD_BYTES = 100 * 1024 * 1024   # 100 MiB
+_MAX_PLAINTEXT_BYTES = 10 * 1024 * 1024  # 10 MiB
+
+
+class _Envelope(NamedTuple):
+    salt: bytes
+    kdf_params: dict[str, int]
+    nonce: bytes
+    ciphertext: bytes
 
 
 def encrypt(plaintext: bytes, password: str) -> bytes:
@@ -68,30 +83,70 @@ def encrypt(plaintext: bytes, password: str) -> bytes:
     )
 
 
-def decrypt(payload: bytes, password: str) -> bytes | None:
+def decrypt(payload: bytes, password: str) -> bytes:
     """Decrypt *payload* previously produced by :func:`encrypt`.
 
-    Returns the original plaintext, or ``None`` when the password is wrong
-    or the payload has been tampered with (GCM authentication failure).
+    Returns the original plaintext.
+
+    :raises VaultStructureError: the payload envelope is malformed
+        (corrupted file, unsupported version, unreasonable size).
+    :raises DecryptionError: password is wrong or the ciphertext has been
+        tampered with.
+    """
+    envelope = _parse_envelope(payload)
+    key = _derive_key(
+        password,
+        envelope.salt,
+        envelope.kdf_params["iterations"],
+        envelope.kdf_params["memory_cost"],
+        envelope.kdf_params["lanes"],
+    )
+    try:
+        plaintext = AESGCM(key).decrypt(
+            envelope.nonce, envelope.ciphertext, AAD
+        )
+    except InvalidTag:
+        raise DecryptionError() from None
+
+    if len(plaintext) > _MAX_PLAINTEXT_BYTES:
+        raise VaultStructureError("Plaintext exceeds maximum size")
+
+    return plaintext
+
+
+def _parse_envelope(payload: bytes) -> _Envelope:
+    """Parse and validate the payload envelope in a single pass.
+
+    Returns the extracted components without deriving any keys.
+
+    :raises VaultStructureError: on any structural problem.
     """
     if len(payload) < _MIN_PAYLOAD_SIZE:
-        return None
+        raise VaultStructureError("Payload too short")
+    if len(payload) > _MAX_PAYLOAD_BYTES:
+        raise VaultStructureError("Payload exceeds maximum size")
 
     pos = 0
 
     version = payload[pos]
     pos += 1
     if version != PAYLOAD_VERSION:
-        return None
+        raise VaultStructureError(
+            f"Unsupported payload version {version}, expected {PAYLOAD_VERSION}"
+        )
 
     salt = payload[pos : pos + SALT_LENGTH]
     pos += SALT_LENGTH
 
-    kdf_params_len = struct.unpack(">H", payload[pos : pos + KDF_PARAMS_LEN_SIZE])[0]
+    kdf_params_len = struct.unpack(
+        ">H", payload[pos : pos + KDF_PARAMS_LEN_SIZE]
+    )[0]
     pos += KDF_PARAMS_LEN_SIZE
 
     if len(payload) < pos + kdf_params_len + NONCE_LENGTH + 16:
-        return None
+        raise VaultStructureError(
+            "Payload too short for declared KDF params + nonce + GCM tag"
+        )
 
     kdf_params_json = payload[pos : pos + kdf_params_len]
     pos += kdf_params_len
@@ -99,24 +154,20 @@ def decrypt(payload: bytes, password: str) -> bytes | None:
     try:
         kdf_params = json.loads(kdf_params_json)
     except (json.JSONDecodeError, UnicodeDecodeError):
-        return None
+        raise VaultStructureError("KDF params are not valid JSON") from None
+
+    if not _REQUIRED_KDF_KEYS.issubset(kdf_params.keys()):
+        missing = _REQUIRED_KDF_KEYS - kdf_params.keys()
+        raise VaultStructureError(
+            f"KDF params missing required keys: {sorted(missing)}"
+        )
 
     nonce = payload[pos : pos + NONCE_LENGTH]
     pos += NONCE_LENGTH
 
     ciphertext = payload[pos:]
 
-    key = _derive_key(
-        password,
-        salt,
-        kdf_params.get("iterations", DEFAULT_ARGON2_ITERATIONS),
-        kdf_params.get("memory_cost", DEFAULT_ARGON2_MEMORY),
-        kdf_params.get("lanes", DEFAULT_ARGON2_LANES),
-    )
-    try:
-        return AESGCM(key).decrypt(nonce, ciphertext, AAD)
-    except InvalidTag:
-        return None
+    return _Envelope(salt, kdf_params, nonce, ciphertext)
 
 
 def _derive_key(
@@ -134,3 +185,24 @@ def _derive_key(
         lanes=lanes,
     )
     return kdf.derive(password.encode("utf-8"))
+
+
+# ------------------------------------------------------------------
+# Exceptions
+# ------------------------------------------------------------------
+
+
+class VaultStructureError(Exception):
+    """Payload envelope is structurally invalid — the file itself is the problem.
+
+    Raised *before* any expensive key derivation (Argon2).  Callers can use
+    this to tell the user that the vault file is corrupted, not the password.
+    """
+
+
+class DecryptionError(Exception):
+    """GCM authentication failed — most likely the password is wrong.
+
+    Raised *after* key derivation, so an attacker cannot obtain this signal
+    without paying the Argon2 cost.
+    """

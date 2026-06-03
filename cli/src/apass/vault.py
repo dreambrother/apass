@@ -5,14 +5,9 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from apass.crypto import decrypt, encrypt
+from apass.crypto import DecryptionError, VaultStructureError, decrypt, encrypt
 
 CURRENT_DB_VERSION: str = "1.0"
-
-# Safety limit: reject payloads larger than this before even attempting
-# decryption, and reject plaintext larger than this after decryption.
-_MAX_PAYLOAD_BYTES = 100 * 1024 * 1024   # 100 MiB
-_MAX_PLAINTEXT_BYTES = 10 * 1024 * 1024  # 10 MiB
 
 
 class Vault:
@@ -48,14 +43,12 @@ class Vault:
             return PasswordDB()
 
         payload = self._vault_file.read_bytes()
-        if len(payload) > _MAX_PAYLOAD_BYTES:
-            raise WrongPasswordError()
-
-        plaintext = decrypt(payload, user_password)
-        if plaintext is None:
-            raise WrongPasswordError()
-        if len(plaintext) > _MAX_PLAINTEXT_BYTES:
-            raise WrongPasswordError()
+        try:
+            plaintext = decrypt(payload, user_password)
+        except VaultStructureError:
+            raise CorruptedVaultError() from None
+        except DecryptionError:
+            raise WrongPasswordError() from None
 
         data = json.loads(plaintext)
         found_ver = data.get("ver")
@@ -120,6 +113,11 @@ class EntryAlreadyExistsError(Exception):
     def __init__(self, entry_name: str) -> None:
         self.entry_name = entry_name
         super().__init__(f"Entry for {entry_name!r} already exists")
+
+
+class CorruptedVaultError(Exception):
+    def __init__(self) -> None:
+        super().__init__("Vault file is corrupted or has an unsupported format")
 
 
 class WrongPasswordError(Exception):

@@ -23,9 +23,7 @@ DEFAULT_ARGON2_ITERATIONS = 4
 DEFAULT_ARGON2_MEMORY = 131072  # 128 MiB
 DEFAULT_ARGON2_LANES = 4
 
-# Associated data bound to every AES-GCM operation to prevent
-# ciphertext substitution across different contexts.
-AAD = b"apass-v1"
+
 
 # Minimum viable payload size (version + salt + empty params + nonce + GCM tag).
 _MIN_PAYLOAD_SIZE = 1 + SALT_LENGTH + KDF_PARAMS_LEN_SIZE + 2 + NONCE_LENGTH + 16
@@ -71,7 +69,7 @@ def encrypt(plaintext: bytes, password: str) -> bytes:
         kdf_params["lanes"],
     )
     nonce = os.urandom(NONCE_LENGTH)
-    ciphertext = AESGCM(key).encrypt(nonce, plaintext, AAD)
+    ciphertext = AESGCM(key).encrypt(nonce, plaintext, None)
 
     return (
         bytes([PAYLOAD_VERSION])
@@ -103,7 +101,7 @@ def decrypt(payload: bytes, password: str) -> bytes:
     )
     try:
         plaintext = AESGCM(key).decrypt(
-            envelope.nonce, envelope.ciphertext, AAD
+            envelope.nonce, envelope.ciphertext, None
         )
     except InvalidTag:
         raise DecryptionError() from None

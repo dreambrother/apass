@@ -3,7 +3,6 @@
 import pytest
 
 from apass.crypto import (
-    AAD,
     PAYLOAD_VERSION,
     DecryptionError,
     VaultStructureError,
@@ -72,17 +71,3 @@ def test_bad_kdf_json_raises_structure_error() -> None:
 def test_version_byte_is_present() -> None:
     ciphertext = encrypt(b"data", "pass")
     assert ciphertext[0] == PAYLOAD_VERSION
-
-
-def test_aad_is_bound() -> None:
-    """If the AAD constant changes, existing ciphertexts must fail."""
-    ciphertext = encrypt(b"data", "pass")
-
-    import apass.crypto as crypto_module
-    original_aad = crypto_module.AAD
-    try:
-        crypto_module.AAD = b"apass-v2"
-        with pytest.raises(DecryptionError):
-            decrypt(ciphertext, "pass")
-    finally:
-        crypto_module.AAD = original_aad

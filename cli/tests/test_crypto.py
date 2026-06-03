@@ -12,6 +12,19 @@ from apass.crypto import (
 )
 
 
+@pytest.fixture(autouse=True)
+def fast_argon2(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Speed up tests by using minimal Argon2 parameters.
+
+    Parameters are stored inside the payload, so round-trip still works.
+    """
+    import apass.crypto as c
+
+    monkeypatch.setattr(c, "DEFAULT_ARGON2_MEMORY", 8)
+    monkeypatch.setattr(c, "DEFAULT_ARGON2_ITERATIONS", 1)
+    monkeypatch.setattr(c, "DEFAULT_ARGON2_LANES", 1)
+
+
 def test_round_trip() -> None:
     plaintext = b"hello, world!"
     password = "correct-horse-battery-staple"
@@ -28,7 +41,6 @@ def test_wrong_password_raises_decryption_error() -> None:
 def test_tampered_ciphertext_raises_decryption_error() -> None:
     ciphertext = encrypt(b"secret", "password")
     mutated = bytearray(ciphertext)
-    # Flip a bit deep inside the ciphertext region.
     mutated[-3] ^= 0x01
     with pytest.raises(DecryptionError):
         decrypt(bytes(mutated), "password")
@@ -50,7 +62,6 @@ def test_wrong_version_raises_structure_error() -> None:
 def test_bad_kdf_json_raises_structure_error() -> None:
     ciphertext = encrypt(b"data", "pass")
     mutated = bytearray(ciphertext)
-    # Corrupt the KDF params JSON length prefix to point into garbage.
     pos = 1 + 16  # version + salt
     mutated[pos] = 0xFF
     mutated[pos + 1] = 0xFF

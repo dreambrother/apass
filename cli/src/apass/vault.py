@@ -7,7 +7,7 @@ from pathlib import Path
 
 from apass.crypto import DecryptionError, VaultStructureError, decrypt, encrypt
 
-CURRENT_DB_VERSION: str = "1.0"
+CURRENT_DB_VERSION: int = 1
 
 
 class Vault:
@@ -52,10 +52,8 @@ class Vault:
 
         data = json.loads(plaintext)
         found_ver = data.get("ver")
-        if found_ver != CURRENT_DB_VERSION:
-            raise UnsupportedDBVersionError(
-                found_ver if isinstance(found_ver, str) else str(found_ver)
-            )
+        if not isinstance(found_ver, int) or found_ver != CURRENT_DB_VERSION:
+            raise UnsupportedDBVersionError(found_ver)
 
         return PasswordDB(
             ver=data["ver"],
@@ -93,7 +91,7 @@ class Vault:
 
 @dataclass
 class PasswordDB:
-    ver: str = CURRENT_DB_VERSION
+    ver: int = CURRENT_DB_VERSION
     entries: list[PasswordEntry] = field(default_factory=list)
 
 
@@ -126,9 +124,9 @@ class WrongPasswordError(Exception):
 
 
 class UnsupportedDBVersionError(Exception):
-    def __init__(self, found_version: str) -> None:
+    def __init__(self, found_version: int) -> None:
         self.found_version = found_version
         super().__init__(
-            f"Unsupported vault version {found_version!r}. "
-            f"Expected {CURRENT_DB_VERSION!r}. Please upgrade apass."
+            f"Unsupported vault version {found_version}. "
+            f"Expected {CURRENT_DB_VERSION}. Please upgrade apass."
         )

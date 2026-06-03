@@ -1,7 +1,7 @@
 import json
 import os
 import struct
-from typing import NamedTuple
+from dataclasses import dataclass
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -24,7 +24,6 @@ DEFAULT_ARGON2_MEMORY = 131072  # 128 MiB
 DEFAULT_ARGON2_LANES = 4
 
 
-
 # Minimum viable payload size (version + salt + empty params + nonce + GCM tag).
 _MIN_PAYLOAD_SIZE = 1 + SALT_LENGTH + KDF_PARAMS_LEN_SIZE + 2 + NONCE_LENGTH + 16
 
@@ -36,7 +35,8 @@ _MAX_PAYLOAD_BYTES = 100 * 1024 * 1024   # 100 MiB
 _MAX_PLAINTEXT_BYTES = 10 * 1024 * 1024  # 10 MiB
 
 
-class _Envelope(NamedTuple):
+@dataclass
+class _Envelope:
     salt: bytes
     kdf_params: dict[str, int]
     nonce: bytes

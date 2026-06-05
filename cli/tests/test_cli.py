@@ -7,7 +7,7 @@ from apass.cli import app
 runner = CliRunner()
 
 
-def test_init_prompts_for_password_and_initializes_db():
+def test_init_prompts_for_password_and_initializes_db() -> None:
     mock_vault = MagicMock()
     with (
         patch("apass.cli._get_vault", return_value=mock_vault),
@@ -19,7 +19,7 @@ def test_init_prompts_for_password_and_initializes_db():
     assert "Vault created at" in result.stdout
 
 
-def test_create_prompts_for_password_and_stores():
+def test_create_prompts_for_password_and_stores() -> None:
     mock_vault = MagicMock()
     with (
         patch("apass.generator.create_password", return_value="abc123"),
@@ -34,7 +34,7 @@ def test_create_prompts_for_password_and_stores():
     assert "Password for example copied to clipboard" in result.output
 
 
-def test_create_exits_on_value_error():
+def test_create_exits_on_value_error() -> None:
     with (
         patch("apass.generator.create_password", side_effect=ValueError("Something went wrong")),
     ):

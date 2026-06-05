@@ -11,9 +11,8 @@ def test_init_prompts_for_password_and_initializes_db():
     mock_vault = MagicMock()
     with (
         patch("apass.cli._get_vault", return_value=mock_vault),
-        patch("typer.prompt", return_value="master123"),
     ):
-        result = runner.invoke(app, ["init"])
+        result = runner.invoke(app, ["init"], input="master123\nmaster123\n")
 
     assert result.exit_code == 0
     mock_vault.init_db.assert_called_once_with("master123")
@@ -26,9 +25,8 @@ def test_create_prompts_for_password_and_stores():
         patch("apass.generator.create_password", return_value="abc123"),
         patch("apass.cli._get_vault", return_value=mock_vault),
         patch("apass.clipboard.copy") as mock_copy,
-        patch("typer.prompt", return_value="master123"),
     ):
-        result = runner.invoke(app, ["create", "example"])
+        result = runner.invoke(app, ["create", "example"], input="master123\n")
 
     assert result.exit_code == 0
     mock_vault.create.assert_called_once_with("example", "abc123", "master123")
@@ -39,9 +37,8 @@ def test_create_prompts_for_password_and_stores():
 def test_create_exits_on_value_error():
     with (
         patch("apass.generator.create_password", side_effect=ValueError("Something went wrong")),
-        patch("typer.prompt", return_value="master123"),
     ):
-        result = runner.invoke(app, ["create", "example"])
+        result = runner.invoke(app, ["create", "example"], input="master123\n")
 
     assert result.exit_code == 1
     assert "Something went wrong" in result.output

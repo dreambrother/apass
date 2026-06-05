@@ -5,7 +5,7 @@ import typer
 
 from apass import clipboard, generator
 from apass.config import ENV_DB_PATH, get_db_path
-from apass.vault import Vault
+from apass.vault import EntryAlreadyExistsError, Vault
 
 app = typer.Typer()
 _vault: Vault | None = None
@@ -48,7 +48,10 @@ def create(
 
     user_password = typer.prompt("Master password", hide_input=True)
     vault = _get_vault()
-    vault.create(name, service_password, user_password)
+    try:
+        vault.create(name, service_password, user_password)
+    except EntryAlreadyExistsError:
+        _fail(f"Entry '{name}' already exists. Use the 'set' command to overwrite it.")
     clipboard.copy(service_password)
     typer.echo(f"Password for {name} copied to clipboard")
 

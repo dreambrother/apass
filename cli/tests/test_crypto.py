@@ -12,7 +12,7 @@ from apass.crypto import (
 
 
 @pytest.fixture(autouse=True)
-def fast_argon2(monkeypatch: pytest.MonkeyPatch):
+def fast_argon2(monkeypatch: pytest.MonkeyPatch) -> None:
     """Speed up tests by using minimal Argon2 parameters.
 
     Parameters are stored inside the payload, so round-trip still works.
@@ -24,20 +24,20 @@ def fast_argon2(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(c, "DEFAULT_ARGON2_LANES", 1)
 
 
-def test_round_trip():
+def test_round_trip() -> None:
     plaintext = b"hello, world!"
     password = "correct-horse-battery-staple"
     ciphertext = encrypt(plaintext, password)
     assert decrypt(ciphertext, password) == plaintext
 
 
-def test_wrong_password_raises_decryption_error():
+def test_wrong_password_raises_decryption_error() -> None:
     ciphertext = encrypt(b"secret", "right-password")
     with pytest.raises(DecryptionError):
         decrypt(ciphertext, "wrong-password")
 
 
-def test_tampered_ciphertext_raises_decryption_error():
+def test_tampered_ciphertext_raises_decryption_error() -> None:
     ciphertext = encrypt(b"secret", "password")
     mutated = bytearray(ciphertext)
     mutated[-3] ^= 0x01
@@ -45,12 +45,12 @@ def test_tampered_ciphertext_raises_decryption_error():
         decrypt(bytes(mutated), "password")
 
 
-def test_short_payload_raises_structure_error():
+def test_short_payload_raises_structure_error() -> None:
     with pytest.raises(VaultStructureError, match="Payload too short"):
         decrypt(b"short", "password")
 
 
-def test_wrong_version_raises_structure_error():
+def test_wrong_version_raises_structure_error() -> None:
     ciphertext = encrypt(b"data", "pass")
     mutated = bytearray(ciphertext)
     mutated[0] = 99  # unsupported version
@@ -58,7 +58,7 @@ def test_wrong_version_raises_structure_error():
         decrypt(bytes(mutated), "pass")
 
 
-def test_bad_kdf_json_raises_structure_error():
+def test_bad_kdf_json_raises_structure_error() -> None:
     ciphertext = encrypt(b"data", "pass")
     mutated = bytearray(ciphertext)
     pos = 1 + 16  # version + salt
@@ -68,6 +68,6 @@ def test_bad_kdf_json_raises_structure_error():
         decrypt(bytes(mutated), "pass")
 
 
-def test_version_byte_is_present():
+def test_version_byte_is_present() -> None:
     ciphertext = encrypt(b"data", "pass")
     assert ciphertext[0] == PAYLOAD_VERSION

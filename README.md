@@ -10,6 +10,7 @@ A dead-simple cross-platform **A**nother **Pass**word manager.
 
 ## CLI Features
 
+- [x] Init (create the local vault)
 - [x] Create
 - [ ] Generate (without saving to vault)
 - [ ] Set (with possible overwrite)

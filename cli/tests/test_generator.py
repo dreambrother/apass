@@ -105,5 +105,33 @@ def test_create_password_size_eq_min_size() -> None:
     assert any(s in pw for s in string.punctuation)
 
 
+def test_create_password_min_digits_zero() -> None:
+    pw = generator.create_password(size=12, min_digits=0)
+    print(f"Generated password {pw}")
+
+    assert len(pw) == 12
+    assert _count_chars(string.digits, pw) == 0
+    assert _count_chars(string.punctuation, pw) >= 1
+
+
+def test_create_password_min_special_zero() -> None:
+    pw = generator.create_password(size=12, min_special=0)
+    print(f"Generated password {pw}")
+
+    assert len(pw) == 12
+    assert _count_chars(string.punctuation, pw) == 0
+    assert _count_chars(string.digits, pw) >= 1
+
+
+def test_create_password_min_digits_and_min_special_zero() -> None:
+    pw = generator.create_password(size=12, min_digits=0, min_special=0)
+    print(f"Generated password {pw}")
+
+    assert len(pw) == 12
+    assert _count_chars(string.digits, pw) == 0
+    assert _count_chars(string.punctuation, pw) == 0
+    assert _count_chars(string.ascii_letters, pw) == 12
+
+
 def _count_chars(chars: str, pw: str) -> int:
     return sum(c in chars for c in pw)

@@ -7,7 +7,6 @@ DEFAULT_PASSWORD_SIZE = 16
 _RAND = secrets.SystemRandom()
 
 
-# TODO no digits, no specials
 def create_password(
     size: int,
     min_digits: int | None = None,
@@ -64,6 +63,8 @@ def _validate(
 
 
 def _random_count(min_count: int, chars_remain: int, password_size: int) -> int:
+    if min_count == 0:
+        return 0
     if chars_remain <= min_count:
         return chars_remain
     upper_bound = min(max(min_count, password_size // 3), chars_remain)

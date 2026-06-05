@@ -8,15 +8,13 @@ A dead-simple cross-platform **A**nother **Pass**word manager.
 
 **Under active development.** CLI is functional — generates a password, copies it to the clipboard, and persists it in an encrypted local vault.
 
-## Features
+## CLI Features
 
-| Feature                    | Status       |
-| -------------------------- | ------------ |
-| Password generation        | In progress  |
-| Password storage           | In progress  |
-| Password rotation          | Planned      |
-| Cloud sync                 | Planned      |
-| Android client             | TODO         |
+- [x] Create
+- [ ] Generate (without saving to vault)
+- [ ] Set (with possible overwrite)
+- [ ] Search and copy
+- [ ] Cloud sync
 
 ## CLI
 

@@ -7,7 +7,21 @@ from apass.cli import app
 runner = CliRunner()
 
 
-def test_create_prompts_for_password_and_stores() -> None:
+def test_init_prompts_for_password_and_initializes_db():
+    mock_vault = MagicMock()
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+        patch("typer.prompt", return_value="master123"),
+    ):
+        result = runner.invoke(app, ["init"])
+        print(result.output)
+
+    assert result.exit_code == 0
+    mock_vault.init_db.assert_called_once_with("master123")
+    assert "Vault created at" in result.stdout
+
+
+def test_create_prompts_for_password_and_stores():
     mock_vault = MagicMock()
     with (
         patch("apass.generator.create_password", return_value="abc123"),
@@ -16,19 +30,19 @@ def test_create_prompts_for_password_and_stores() -> None:
         patch("typer.prompt", return_value="master123"),
     ):
         result = runner.invoke(app, ["create", "example"])
+        print(result.output)
 
     assert result.exit_code == 0
     mock_vault.create.assert_called_once_with("example", "abc123", "master123")
 
 
-def test_init_prompts_for_password_and_initializes_db() -> None:
-    mock_vault = MagicMock()
+def test_create_prompts_validations():
     with (
-        patch("apass.cli._get_vault", return_value=mock_vault),
+        patch("apass.generator.create_password", side_effect=ValueError("Something went wrong")),
         patch("typer.prompt", return_value="master123"),
     ):
-        result = runner.invoke(app, ["init"])
+        result = runner.invoke(app, ["create", "example"])
+        print(result.output)
 
-    assert result.exit_code == 0
-    mock_vault.init_db.assert_called_once_with("master123")
-    assert "Vault created at" in result.stdout
+    assert result.exit_code == 1
+    assert "Something went wrong" in result.output

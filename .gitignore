@@ -219,3 +219,4 @@ __marimo__/
 
 # Logo generator
 generate_logo.py
+cli/src/apass/experiments.py

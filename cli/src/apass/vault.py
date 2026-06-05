@@ -40,7 +40,7 @@ class Vault:
 
     def _read_db(self, user_password: str) -> PasswordDB:
         if not self._vault_file.exists():
-            return PasswordDB()
+            raise VaultNotInitializedError()
 
         payload = self._vault_file.read_bytes()
         try:
@@ -105,6 +105,11 @@ class PasswordEntry:
 # ------------------------------------------------------------------
 # Exceptions
 # ------------------------------------------------------------------
+
+
+class VaultNotInitializedError(Exception):
+    def __init__(self) -> None:
+        super().__init__("Vault is not initialized. Run 'apass init' first.")
 
 
 class EntryAlreadyExistsError(Exception):

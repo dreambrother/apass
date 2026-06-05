@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
+from apass.vault import VaultNotInitializedError
 from apass.cli import app
 
 runner = CliRunner()
@@ -58,3 +59,17 @@ def test_create_exits_on_value_error() -> None:
 
     assert result.exit_code == 1
     assert "Something went wrong" in result.output
+
+
+def test_create_fails_when_vault_not_initialized() -> None:
+    mock_vault = MagicMock()
+    mock_vault.create.side_effect = VaultNotInitializedError()
+    with (
+        patch("apass.generator.create_password", return_value="abc123"),
+        patch("apass.cli._get_vault", return_value=mock_vault),
+        patch("apass.clipboard.copy"),
+    ):
+        result = runner.invoke(app, ["create", "example"], input="master123\n")
+
+    assert result.exit_code == 1
+    assert "not initialized" in result.output

@@ -5,7 +5,7 @@ import typer
 
 from apass import clipboard, generator
 from apass.config import ENV_DB_PATH, get_db_path
-from apass.vault import EntryAlreadyExistsError, Vault
+from apass.vault import EntryAlreadyExistsError, VaultNotInitializedError, Vault
 
 app = typer.Typer()
 _vault: Vault | None = None
@@ -50,6 +50,8 @@ def create(
     vault = _get_vault()
     try:
         vault.create(name, service_password, master_password)
+    except VaultNotInitializedError:
+        _fail("Vault is not initialized. Run 'apass init' first.")
     except EntryAlreadyExistsError:
         _fail(f"Entry '{name}' already exists. Use the 'set' command to overwrite it.")
     clipboard.copy(service_password)

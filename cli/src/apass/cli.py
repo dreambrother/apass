@@ -20,10 +20,7 @@ def callback(ctx: typer.Context):
 
 @app.command()
 def init(
-    master_password: t.Annotated[
-        str,
-        typer.Option(prompt="Master password", hide_input=True, confirmation_prompt=True, hidden=True),
-    ],
+    master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, confirmation_prompt=True, hidden=True)],
 ) -> None:
     path = get_db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -39,10 +36,7 @@ def init(
 @app.command()
 def create(
     name: t.Annotated[str, typer.Argument(help="Service/utility name")],
-    master_password: t.Annotated[
-        str,
-        typer.Option(prompt="Master password", hide_input=True, hidden=True),
-    ],
+    master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, hidden=True)],
     size: t.Annotated[int, typer.Option("--size", "-s", help="Password size")] = generator.DEFAULT_PASSWORD_SIZE,
     min_digits: t.Annotated[int | None, typer.Option("--min-digits", "-d", help="Minimum number of digits")] = None,
     min_special: t.Annotated[int | None, typer.Option("--min-special", "-p", help="Minimum number of special characters")] = None,

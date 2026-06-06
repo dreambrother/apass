@@ -8,7 +8,6 @@ from apass.config import ENV_DB_PATH, get_db_path
 from apass.vault import EntryAlreadyExistsError, PasswordEntry, VaultNotInitializedError, WrongPasswordError, Vault
 
 app = typer.Typer()
-_vault: Vault | None = None
 
 
 @app.callback(invoke_without_command=True)
@@ -101,10 +100,7 @@ def get(
 
 
 def _get_vault() -> Vault:
-    global _vault
-    if _vault is None:
-        _vault = Vault(get_db_path())
-    return _vault
+    return Vault(get_db_path())
 
 
 def _fail(message: str) -> t.NoReturn:

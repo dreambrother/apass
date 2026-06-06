@@ -12,9 +12,10 @@ A dead-simple cross-platform **A**nother **Pass**word manager.
 
 - [x] Init (create the local vault)
 - [x] Create
-- [x] Search and copy
-- [ ] Set/rotate (with possible overwrite)
+- [x] Get
+- [x] Save
 - [ ] Cloud sync
+- [ ] Rotate
 
 ## CLI
 
@@ -23,14 +24,63 @@ Install and run:
 ```bash
 cd cli
 poetry install
-poetry run init
+poetry run apass init
 poetry run apass create github
 ```
 
-Prompts for a master password, generates a service password, copies it to clipboard,
-and stores it in an encrypted local vault.
-
 Requires **Python ≥ 3.14**, Poetry 2.x.
+
+### Commands
+
+#### `apass init`
+
+Create a new encrypted vault. Prompts for a master password (min 8 characters, 12+ recommended).
+
+```bash
+poetry run apass init
+```
+
+#### `apass create <name>`
+
+Generate a new password, copy it to the clipboard, and store it in the vault.
+
+```bash
+poetry run apass create github
+poetry run apass create github --size 24 --min-digits 2 --min-special 2
+```
+
+| Option | Short | Description | Default |
+|---|---|---|---|
+| `--size` | `-s` | Password length | 18 |
+| `--min-digits` | `-d` | Minimum number of digits (0 to disable) | — |
+| `--min-special` | `-p` | Minimum number of special characters (0 to disable) | — |
+
+#### `apass get <name>`
+
+Search for a password by name and copy it to the clipboard. If multiple entries match, prompts to choose one.
+
+```bash
+poetry run apass get github
+```
+
+#### `apass save <name>`
+
+Save an existing password to the vault.
+
+```bash
+poetry run apass save github
+poetry run apass save github --force
+```
+
+| Option | Short | Description | Default |
+|---|---|---|---|
+| `--force` | `-f` | Overwrite existing entry | `false` |
+
+### Environment variables
+
+| Variable | Description |
+|---|---|
+| `APASS_DB_PATH` | Path to the vault file (default: `~/.apass/vault.db`) |
 
 ## Android
 

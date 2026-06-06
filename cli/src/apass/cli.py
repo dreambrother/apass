@@ -5,7 +5,7 @@ import typer
 
 from apass import clipboard, generator
 from apass.config import ENV_DB_PATH, get_db_path
-from apass.vault import EntryAlreadyExistsError, VaultNotInitializedError, WrongPasswordError, Vault
+from apass.vault import EntryAlreadyExistsError, PasswordEntry, VaultNotInitializedError, WrongPasswordError, Vault
 
 app = typer.Typer()
 _vault: Vault | None = None
@@ -60,6 +60,32 @@ def create(
     typer.echo(f"Password for {name} copied to clipboard")
 
 
+@app.command()
+def get(
+    name: t.Annotated[str, typer.Argument(help="Service/utility name")],
+    master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, hidden=True)],
+) -> None:
+    """Search for a password by name and copy it to the clipboard"""
+    vault = _get_vault()
+    try:
+        entries = vault.search(name, master_password)
+    except VaultNotInitializedError:
+        _fail("Vault is not initialized. Run 'apass init' first.")
+    except WrongPasswordError:
+        _fail("Wrong password")
+
+    if not entries:
+        _fail(f"No entries found for '{name}'")
+
+    if len(entries) == 1:
+        entry = entries[0]
+    else:
+        entry = _ask_user_choice(name, entries)
+
+    clipboard.copy(entry.password)
+    typer.echo(f"Password for {entry.name} copied to clipboard")
+
+
 def _get_vault() -> Vault:
     global _vault
     if _vault is None:
@@ -71,3 +97,14 @@ def _fail(message: str) -> t.NoReturn:
     """Print an error message in red and exit with code 1."""
     typer.secho(message, err=True, fg=typer.colors.RED)
     raise typer.Exit(1)
+
+
+def _ask_user_choice(name: str, entries: list[PasswordEntry]) -> PasswordEntry:
+    typer.echo(f"Found {len(entries)} entries matching '{name}':\n")
+    for i, entry in enumerate(entries, start=1):
+        typer.echo(f"  {i}: {entry.name}")
+    typer.echo()
+    choice = typer.prompt("Choose entry number", type=int, default=1)
+    if choice < 1 or choice > len(entries):
+        _fail(f"Invalid choice: {choice}. Must be between 1 and {len(entries)}.")
+    return entries[choice - 1]

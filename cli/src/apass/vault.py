@@ -38,6 +38,10 @@ class Vault:
     def _new_id(self, db: PasswordDB) -> int:
         return max((entry.id for entry in db.entries), default=0) + 1
 
+    def search(self, query: str, user_password: str) -> list[PasswordEntry]:
+        db = self._read_db(user_password)
+        return [entry for entry in db.entries if query.lower() in entry.name.lower()]
+
     def _read_db(self, user_password: str) -> PasswordDB:
         if not self._vault_file.exists():
             raise VaultNotInitializedError()

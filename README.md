@@ -12,7 +12,7 @@ A dead-simple cross-platform **A**nother **Pass**word manager.
 
 - [x] Init (create the local vault)
 - [x] Create
-- [ ] Search and copy
+- [x] Search and copy
 - [ ] Set/rotate (with possible overwrite)
 - [ ] Cloud sync
 

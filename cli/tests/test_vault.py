@@ -45,9 +45,9 @@ def test_create_adds_entry(initialized_vault: Vault, master_password: str) -> No
 
 
 def test_create_adds_multiple_entries(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.create("example1", "password123", master_password)
-    initialized_vault.create("example2", "password123", master_password)
-    initialized_vault.create("example3", "password123", master_password)
+    initialized_vault.create("example1", "password1", master_password)
+    initialized_vault.create("example2", "password2", master_password)
+    initialized_vault.create("example3", "password3", master_password)
 
     # Verify by reading back
     vault2 = Vault(initialized_vault._vault_file)
@@ -96,3 +96,27 @@ def test_read_db_raises_on_unsupported_version(tmp_path: Path) -> None:
     with pytest.raises(UnsupportedDBVersionError) as exc_info:
         vault._read_db("master123")
     assert exc_info.value.found_version == 999
+
+
+def test_search_multiple_entries(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.create("some pass", "passwd1", master_password)
+    initialized_vault.create("Example1", "passwd2", master_password)
+    initialized_vault.create("example2", "passwd3", master_password)
+    initialized_vault.create("Unknown", "passwd4", master_password)
+    initialized_vault.create("example_3", "passwd5", master_password)
+    initialized_vault.create("Some example", "passwd6", master_password)
+    initialized_vault.create("fooexamplebar", "passwd7", master_password)
+    initialized_vault.create("Another pass", "passwd8", master_password)
+
+    entries = initialized_vault.search("example", master_password)
+
+    assert [e.id for e in entries] == [2, 3, 5, 6, 7]
+
+
+def test_search_no_entries(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.create("some pass 1", "passwd1", master_password)
+    initialized_vault.create("some pass 2", "passwd2", master_password)
+
+    entries = initialized_vault.search("example", master_password)
+
+    assert len(entries) == 0

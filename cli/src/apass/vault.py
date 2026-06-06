@@ -14,41 +14,43 @@ class Vault:
     def __init__(self, vault_file: Path) -> None:
         self._vault_file = vault_file
 
-    def init_db(self, user_password: str) -> None:
+    def init_db(self, master_password: str) -> None:
         db = PasswordDB()
-        self._store_db(db, user_password)
+        self._store_db(db, master_password)
 
-    def create(
-        self, service_name: str, service_password: str, user_password: str
-    ) -> None:
-        db = self._read_db(user_password)
-        if any(service_name == entry.name for entry in db.entries):
-            raise EntryAlreadyExistsError(service_name)
-
-        db.entries.append(
-            PasswordEntry(
-                self._new_id(db),
-                service_name,
-                service_password,
-                int(datetime.now(timezone.utc).timestamp()),
+    def save(self, service_name: str, service_password: str, master_password: str, force: bool = False) -> None:
+        db = self._read_db(master_password)
+        for entry in db.entries:
+            if entry.name == service_name:
+                if not force:
+                    raise EntryAlreadyExistsError(service_name)
+                entry.password = service_password
+                break
+        else:
+            db.entries.append(
+                PasswordEntry(
+                    self._new_id(db),
+                    service_name,
+                    service_password,
+                    int(datetime.now(timezone.utc).timestamp()),
+                )
             )
-        )
-        self._store_db(db, user_password)
+        self._store_db(db, master_password)
 
     def _new_id(self, db: PasswordDB) -> int:
         return max((entry.id for entry in db.entries), default=0) + 1
 
-    def search(self, query: str, user_password: str) -> list[PasswordEntry]:
-        db = self._read_db(user_password)
+    def search(self, query: str, master_password: str) -> list[PasswordEntry]:
+        db = self._read_db(master_password)
         return [entry for entry in db.entries if query.lower() in entry.name.lower()]
 
-    def _read_db(self, user_password: str) -> PasswordDB:
+    def _read_db(self, master_password: str) -> PasswordDB:
         if not self._vault_file.exists():
             raise VaultNotInitializedError()
 
         payload = self._vault_file.read_bytes()
         try:
-            plaintext = decrypt(payload, user_password)
+            plaintext = decrypt(payload, master_password)
         except VaultStructureError:
             raise CorruptedVaultError() from None
         except DecryptionError:
@@ -64,9 +66,9 @@ class Vault:
             entries=[PasswordEntry(**e) for e in data["entries"]],
         )
 
-    def _store_db(self, db: PasswordDB, user_password: str) -> None:
+    def _store_db(self, db: PasswordDB, master_password: str) -> None:
         plaintext = json.dumps(asdict(db), ensure_ascii=False).encode("utf-8")
-        payload = encrypt(plaintext, user_password)
+        payload = encrypt(plaintext, master_password)
 
         self._vault_file.parent.mkdir(parents=True, exist_ok=True)
 

@@ -30,8 +30,8 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
 
 ## Module map
 
-- `cli.py` — Typer app, entry point, all CLI commands (`init`, `create`, `get`)
-- `vault.py` — `Vault` class with `init_db`, `create`, `search`, `_read_db`, `_store_db`;
+- `cli.py` — Typer app, entry point, all CLI commands (`init`, `create`, `get`, `save`)
+- `vault.py` — `Vault` class with `init_db`, `save`, `search`;
   data models (`PasswordDB`, `PasswordEntry`); custom exceptions
   (`VaultNotInitializedError`, `EntryAlreadyExistsError`, `CorruptedVaultError`,
   `WrongPasswordError`, `UnsupportedDBVersionError`); atomic file writes via tempfile+rename

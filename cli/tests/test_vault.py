@@ -32,8 +32,8 @@ def test_init_db_creates_new_vault(tmp_path: Path) -> None:
     assert vault_file.exists()
 
 
-def test_create_adds_entry(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.create("example", "password123", master_password)
+def test_save_adds_entry(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.save("example", "password123", master_password)
 
     # Verify by reading back
     vault2 = Vault(initialized_vault._vault_file)
@@ -44,10 +44,10 @@ def test_create_adds_entry(initialized_vault: Vault, master_password: str) -> No
     assert db.entries[0].password == "password123"
 
 
-def test_create_adds_multiple_entries(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.create("example1", "password1", master_password)
-    initialized_vault.create("example2", "password2", master_password)
-    initialized_vault.create("example3", "password3", master_password)
+def test_save_adds_multiple_entries(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.save("example1", "password1", master_password)
+    initialized_vault.save("example2", "password2", master_password)
+    initialized_vault.save("example3", "password3", master_password)
 
     # Verify by reading back
     vault2 = Vault(initialized_vault._vault_file)
@@ -55,11 +55,11 @@ def test_create_adds_multiple_entries(initialized_vault: Vault, master_password:
     assert [e.id for e in db.entries] == [1, 2, 3]
 
 
-def test_create_raises_on_duplicate(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.create("example", "password123", master_password)
+def test_save_raises_on_duplicate(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.save("example", "password123", master_password)
 
     with pytest.raises(EntryAlreadyExistsError):
-        initialized_vault.create("example", "password456", master_password)
+        initialized_vault.save("example", "password456", master_password)
 
 
 def test_read_db_raises_when_not_initialized(tmp_path: Path) -> None:
@@ -99,14 +99,14 @@ def test_read_db_raises_on_unsupported_version(tmp_path: Path) -> None:
 
 
 def test_search_multiple_entries(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.create("some pass", "passwd1", master_password)
-    initialized_vault.create("Example1", "passwd2", master_password)
-    initialized_vault.create("example2", "passwd3", master_password)
-    initialized_vault.create("Unknown", "passwd4", master_password)
-    initialized_vault.create("example_3", "passwd5", master_password)
-    initialized_vault.create("Some example", "passwd6", master_password)
-    initialized_vault.create("fooexamplebar", "passwd7", master_password)
-    initialized_vault.create("Another pass", "passwd8", master_password)
+    initialized_vault.save("some pass", "passwd1", master_password)
+    initialized_vault.save("Example1", "passwd2", master_password)
+    initialized_vault.save("example2", "passwd3", master_password)
+    initialized_vault.save("Unknown", "passwd4", master_password)
+    initialized_vault.save("example_3", "passwd5", master_password)
+    initialized_vault.save("Some example", "passwd6", master_password)
+    initialized_vault.save("fooexamplebar", "passwd7", master_password)
+    initialized_vault.save("Another pass", "passwd8", master_password)
 
     entries = initialized_vault.search("example", master_password)
 
@@ -114,8 +114,8 @@ def test_search_multiple_entries(initialized_vault: Vault, master_password: str)
 
 
 def test_search_no_entries(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.create("some pass 1", "passwd1", master_password)
-    initialized_vault.create("some pass 2", "passwd2", master_password)
+    initialized_vault.save("some pass 1", "passwd1", master_password)
+    initialized_vault.save("some pass 2", "passwd2", master_password)
 
     entries = initialized_vault.search("example", master_password)
 

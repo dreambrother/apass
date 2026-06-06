@@ -62,13 +62,13 @@ def create(
 
     vault = _get_vault()
     try:
-        vault.create(name, service_password, master_password)
+        vault.save(name, service_password, master_password, False)
     except VaultNotInitializedError:
         _fail("Vault is not initialized. Run 'apass init' first.")
     except WrongPasswordError:
         _fail("Wrong password")
     except EntryAlreadyExistsError:
-        _fail(f"Entry '{name}' already exists. Use the 'set' command to overwrite it.")
+        _fail(f"Entry '{name}' already exists. Use the 'save' command with --force to overwrite it.")
     clipboard.copy(service_password)
     typer.echo(f"Password for {name} copied to clipboard")
 
@@ -97,6 +97,26 @@ def get(
 
     clipboard.copy(entry.password)
     typer.echo(f"Password for {entry.name} copied to clipboard")
+
+
+@app.command()
+def save(
+    name: t.Annotated[str, typer.Argument(help="Service/utility name")],
+    master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, hidden=True)],
+    service_password: t.Annotated[str, typer.Option(prompt="Service password", hide_input=True, hidden=True)],
+    force: t.Annotated[bool, typer.Option("-f", "--force", help="Overwrite existing value")] = False,
+) -> None:
+    """Save existing password"""
+    vault = _get_vault()
+    try:
+        vault.save(name, service_password, master_password, force)
+    except VaultNotInitializedError:
+        _fail("Vault is not initialized. Run 'apass init' first.")
+    except WrongPasswordError:
+        _fail("Wrong password")
+    except EntryAlreadyExistsError:
+        _fail(f"Entry '{name}' already exists. Use --force to overwrite it.")
+    typer.echo(f"Password for {name} set successfully")
 
 
 def _get_vault() -> Vault:

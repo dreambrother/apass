@@ -46,7 +46,6 @@ def test_init_warns_when_password_weak() -> None:
     mock_vault.init_db.assert_called_once_with("12345678")
 
 
-
 def test_create_prompts_for_password_and_stores() -> None:
     mock_vault = MagicMock()
     with (
@@ -57,7 +56,7 @@ def test_create_prompts_for_password_and_stores() -> None:
         result = runner.invoke(app, ["create", "example"], input="master123\n")
 
     assert result.exit_code == 0
-    mock_vault.create.assert_called_once_with("example", "abc123", "master123")
+    mock_vault.save.assert_called_once_with("example", "abc123", "master123", False)
     mock_copy.assert_called_once_with("abc123")
     assert "Password for example copied to clipboard" in result.output
 
@@ -72,7 +71,7 @@ def test_create_all_params_passed() -> None:
         result = runner.invoke(app, ["create", "example", "-s", "15", "-d", "5", "-p", "2"], input="master123\n")
 
     assert result.exit_code == 0
-    mock_vault.create.assert_called_once_with("example", "abc123", "master123")
+    mock_vault.save.assert_called_once_with("example", "abc123", "master123", False)
     mock_copy.assert_called_once_with("abc123")
     mock_genetator.assert_called_once_with(size=15, min_digits=5, min_special=2)
     assert "Password for example copied to clipboard" in result.output
@@ -90,7 +89,7 @@ def test_create_exits_on_value_error() -> None:
 
 def test_create_fails_when_vault_not_initialized() -> None:
     mock_vault = MagicMock()
-    mock_vault.create.side_effect = VaultNotInitializedError()
+    mock_vault.save.side_effect = VaultNotInitializedError()
     with (
         patch("apass.generator.create_password", return_value="abc123"),
         patch("apass.cli._get_vault", return_value=mock_vault),
@@ -104,7 +103,7 @@ def test_create_fails_when_vault_not_initialized() -> None:
 
 def test_create_fails_on_wrong_password() -> None:
     mock_vault = MagicMock()
-    mock_vault.create.side_effect = WrongPasswordError()
+    mock_vault.save.side_effect = WrongPasswordError()
     with (
         patch("apass.generator.create_password", return_value="abc123"),
         patch("apass.cli._get_vault", return_value=mock_vault),
@@ -247,6 +246,54 @@ def test_get_fails_on_wrong_password() -> None:
         patch("apass.clipboard.copy"),
     ):
         result = runner.invoke(app, ["get", "svc"], input="wrongpass\n")
+
+    assert result.exit_code == 1
+    assert "Wrong password" in result.output
+
+
+def test_save_prompts_for_passwords_and_stores() -> None:
+    mock_vault = MagicMock()
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(app, ["save", "example"], input="master123\nservice123\n")
+
+    assert result.exit_code == 0
+    mock_vault.save.assert_called_once_with("example", "service123", "master123", False)
+    assert "Password for example set successfully" in result.output
+
+
+def test_save_prompts_for_passwords_and_stores_force() -> None:
+    mock_vault = MagicMock()
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(app, ["save", "example", "--force"], input="master123\nservice123\n")
+
+    assert result.exit_code == 0
+    mock_vault.save.assert_called_once_with("example", "service123", "master123", True)
+    assert "Password for example set successfully" in result.output
+
+
+def test_save_fails_when_vault_not_initialized() -> None:
+    mock_vault = MagicMock()
+    mock_vault.save.side_effect = VaultNotInitializedError()
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(app, ["save", "example"], input="master123\nservice123\n")
+
+    assert result.exit_code == 1
+    assert "not initialized" in result.output
+
+
+def test_save_fails_on_wrong_password() -> None:
+    mock_vault = MagicMock()
+    mock_vault.save.side_effect = WrongPasswordError()
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(app, ["save", "example"], input="master123\nservice123\n")
 
     assert result.exit_code == 1
     assert "Wrong password" in result.output

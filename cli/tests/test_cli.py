@@ -20,6 +20,33 @@ def test_init_prompts_for_password_and_initializes_db() -> None:
     assert "Vault created at" in result.stdout
 
 
+def test_init_fails_when_password_too_short() -> None:
+    mock_vault = MagicMock()
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(app, ["init"], input="short\nshort\n")
+
+    assert result.exit_code == 1
+    assert "Master password is too short" in result.stderr
+    assert "at least 8 characters" in result.stderr
+    mock_vault.init_db.assert_not_called()
+
+
+def test_init_warns_when_password_weak() -> None:
+    mock_vault = MagicMock()
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(app, ["init"], input="12345678\n12345678\n")
+
+    assert result.exit_code == 0
+    assert "Warning: master password is weak" in result.stderr
+    assert "at least 12 characters" in result.stderr
+    mock_vault.init_db.assert_called_once_with("12345678")
+
+
+
 def test_create_prompts_for_password_and_stores() -> None:
     mock_vault = MagicMock()
     with (

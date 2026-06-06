@@ -22,6 +22,20 @@ def callback(ctx: typer.Context):
 def init(
     master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, confirmation_prompt=True, hidden=True)],
 ) -> None:
+    if len(master_password) < 8:
+        _fail(
+            "Master password is too short. "
+            "It must be at least 8 characters; "
+            "12 or more is recommended for adequate security."
+        )
+    if len(master_password) < 12:
+        typer.secho(
+            "Warning: master password is weak. "
+            "Consider using at least 12 characters for better security.",
+            err=True,
+            fg=typer.colors.YELLOW,
+        )
+
     path = get_db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():

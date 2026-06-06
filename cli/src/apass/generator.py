@@ -3,7 +3,7 @@ import string
 
 
 MIN_PASSWORD_SIZE = 6
-DEFAULT_PASSWORD_SIZE = 16
+DEFAULT_PASSWORD_SIZE = 18
 _RAND = secrets.SystemRandom()
 
 

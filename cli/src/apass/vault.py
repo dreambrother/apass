@@ -14,6 +14,10 @@ class Vault:
     def __init__(self, vault_file: Path) -> None:
         self._vault_file = vault_file
 
+    def init_db(self, user_password: str) -> None:
+        db = PasswordDB()
+        self._store_db(db, user_password)
+
     def create(
         self, service_name: str, service_password: str, user_password: str
     ) -> None:
@@ -23,6 +27,7 @@ class Vault:
 
         db.entries.append(
             PasswordEntry(
+                self._new_id(db),
                 service_name,
                 service_password,
                 int(datetime.now(timezone.utc).timestamp()),
@@ -30,13 +35,8 @@ class Vault:
         )
         self._store_db(db, user_password)
 
-    def init_db(self, user_password: str) -> None:
-        db = PasswordDB()
-        self._store_db(db, user_password)
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
+    def _new_id(self, db: PasswordDB) -> int:
+        return max((entry.id for entry in db.entries), default=0) + 1
 
     def _read_db(self, user_password: str) -> PasswordDB:
         if not self._vault_file.exists():
@@ -84,11 +84,6 @@ class Vault:
         os.replace(tmp_path, self._vault_file)
 
 
-# ------------------------------------------------------------------
-# Data model
-# ------------------------------------------------------------------
-
-
 @dataclass
 class PasswordDB:
     ver: int = CURRENT_DB_VERSION
@@ -97,14 +92,10 @@ class PasswordDB:
 
 @dataclass
 class PasswordEntry:
+    id: int
     name: str
     password: str
     modified: int  # Unix timestamp (UTC)
-
-
-# ------------------------------------------------------------------
-# Exceptions
-# ------------------------------------------------------------------
 
 
 class VaultNotInitializedError(Exception):

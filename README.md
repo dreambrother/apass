@@ -14,6 +14,7 @@ A dead-simple cross-platform **A**nother **Pass**word manager.
 - [x] Create
 - [x] Get
 - [x] Save
+- [ ] Login store
 - [ ] Cloud sync
 - [ ] Rotate
 

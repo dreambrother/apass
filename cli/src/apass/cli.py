@@ -5,9 +5,11 @@ import typer
 
 from apass import clipboard, generator
 from apass.config import ENV_DB_PATH, get_db_path
+from apass.sync.sync_cli import sync_app
 from apass.vault import EntryAlreadyExistsError, PasswordEntry, VaultNotInitializedError, WrongPasswordError, Vault
 
 app = typer.Typer()
+app.add_typer(sync_app, name="sync")
 
 
 @app.callback(invoke_without_command=True)

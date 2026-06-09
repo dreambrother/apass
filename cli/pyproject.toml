@@ -10,6 +10,9 @@ requires-python = ">=3.14"
 dependencies = [
     "typer>=0.15,<1",
     "cryptography>=48,<49",
+    "google-api-python-client>=2,<3",
+    "google-auth>=2,<3",
+    "google-auth-oauthlib>=1,<2",
 ]
 
 [tool.pytest.ini_options]

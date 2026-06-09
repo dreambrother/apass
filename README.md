@@ -16,7 +16,8 @@ A dead-simple cross-platform **A**nother **Pass**word manager.
 - [x] Save
 - [ ] Login store
 - [ ] Remove
-- [ ] Cloud sync
+- [x] Cloud sync (Google Drive)
+- [ ] Delete remote vault file
 - [ ] Rotate
 
 ## CLI
@@ -77,6 +78,56 @@ poetry run apass save github --force
 | Option | Short | Description | Default |
 |---|---|---|---|
 | `--force` | `-f` | Overwrite existing entry | `false` |
+
+### Sync with Google Drive
+
+Sync your vault across devices via Google Drive. The vault file is stored in your Drive's hidden app data folder — only apass can access it.
+
+#### Setup
+
+1. **Register a Google Cloud project:**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project (or use existing)
+   - Enable **Google Drive API**
+   - Go to **APIs & Services → OAuth consent screen** → **Add or remove scopes**
+   - Add the following scopes:
+     - `https://www.googleapis.com/auth/drive.appdata`
+     - `https://www.googleapis.com/auth/userinfo.email`
+   - Go to **Credentials** → **Create Credentials** → **OAuth client ID**
+   - Application type: **Desktop app**
+   - Under **Authorized redirect URIs**, add: `http://127.0.0.1`
+   - Click **Create** and note the **Client ID** and **Client Secret**
+
+2. **Configure apass:**
+   ```bash
+   poetry run apass sync setup
+   # Enter client_id and client_secret when prompted
+   ```
+
+3. **Login:**
+   ```bash
+   poetry run apass sync login
+   # Browser opens for OAuth consent
+   ```
+
+#### Commands
+
+| Command | Description |
+|---|---|
+| `apass sync setup` | Configure OAuth credentials (one-time) |
+| `apass sync login` | Authorize apass to access Google Drive |
+| `apass sync logout` | Remove authorization |
+| `apass sync status` | Show sync status (email, file ID, last sync time) |
+| `apass sync diff` | Preview what would be synced (dry run) |
+| `apass sync push` | Merge local + remote, upload to Drive |
+| `apass sync pull` | Merge remote + local, download from Drive |
+
+#### Merge strategy
+
+- Entries are merged by `name` (case-sensitive)
+- Conflicts resolved by last-write-wins using `modified` timestamp
+- On equal timestamps: `push` prefers local, `pull` prefers remote
+- No interactive conflict resolution in v1
 
 ### Environment variables
 

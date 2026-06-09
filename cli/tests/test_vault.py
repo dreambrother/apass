@@ -39,7 +39,6 @@ def test_save_adds_entry(initialized_vault: Vault, master_password: str) -> None
     vault2 = Vault(initialized_vault._vault_file)
     db = vault2._read_db(master_password)
     assert len(db.entries) == 1
-    assert db.entries[0].id == 1
     assert db.entries[0].name == "example"
     assert db.entries[0].password == "password123"
 
@@ -52,7 +51,7 @@ def test_save_adds_multiple_entries(initialized_vault: Vault, master_password: s
     # Verify by reading back
     vault2 = Vault(initialized_vault._vault_file)
     db = vault2._read_db(master_password)
-    assert [e.id for e in db.entries] == [1, 2, 3]
+    assert [e.name for e in db.entries] == ["example1", "example2", "example3"]
 
 
 def test_save_raises_on_duplicate(initialized_vault: Vault, master_password: str) -> None:
@@ -110,7 +109,7 @@ def test_search_multiple_entries(initialized_vault: Vault, master_password: str)
 
     entries = initialized_vault.search("example", master_password)
 
-    assert [e.id for e in entries] == [2, 3, 5, 6, 7]
+    assert [e.name for e in entries] == ["Example1", "example2", "example_3", "Some example", "fooexamplebar"]
 
 
 def test_search_no_entries(initialized_vault: Vault, master_password: str) -> None:

@@ -30,8 +30,8 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
 
 ## Module map
 
-- `cli.py` — Typer app, entry point, all CLI commands (`init`, `create`, `get`, `save`)
-- `vault.py` — `Vault` class with `init_db`, `save`, `search`;
+- `cli.py` — Typer app, entry point, basic CLI commands (`init`, `create`, `get`, `save`)
+- `vault.py` — `Vault` class with `init_db`, `save`, `search`, `read_db`, `store_db`;
   data models (`PasswordDB`, `PasswordEntry`); custom exceptions
   (`VaultNotInitializedError`, `EntryAlreadyExistsError`, `CorruptedVaultError`,
   `WrongPasswordError`, `UnsupportedDBVersionError`); atomic file writes via tempfile+rename
@@ -41,7 +41,17 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
 - `generator.py` — Password generation with configurable size and minimum
   digit/special character guarantees (`create_password`)
 - `config.py` — Database path resolution: `APASS_DB_PATH` env var or `~/.apass/vault.db`
+- `_atomic_write.py` — `atomic_write_bytes()`: atomic file write via tempfile+fsync+rename
 - `clipboard.py` — Cross-platform clipboard integration (`pbcopy` / `xclip` / `clip`)
+- `sync/` — Google Drive sync package:
+  - `state.py` — `SyncState` dataclass, `load_sync_state()`, `save_sync_state()`;
+    stores state in `sync.json` next to vault file
+  - `merge.py` — `merge_dbs()` function, `MergeResult` dataclass (LWW by `name` + `modified`)
+  - `oauth.py` — Google OAuth 2.0 flow (`drive.appfolder` scope);
+    stores config in `gdrive_oauth.json` and tokens in `gdrive_token.json` next to vault file
+  - `gdrive.py` — `GoogleDriveClient` class for vault file operations
+  - `operations.py` — High-level sync operations (`perform_push`, `perform_pull`, `compute_diff`)
+  - `sync_cli.py` — CLI commands for sync (`setup`, `login`, `logout`, `status`, `diff`, `push`, `pull`)
 - `experiments.py` — Scratch/prototyping file (not part of the app)
 
 > **Keep this module map up to date!** When you add, rename, or significantly

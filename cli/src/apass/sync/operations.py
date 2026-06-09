@@ -7,7 +7,7 @@ from apass.sync.merge import MergeResult, merge_dbs
 from apass.sync.oauth import GoogleOAuthProvider
 from apass.sync.state import BackendType, load_sync_state, save_sync_state
 from apass.sync.yandex_oauth import YandexOAuthProvider
-from apass.vault import PasswordDB, Vault, VaultNotInitializedError, WrongPasswordError
+from apass.vault import PasswordDB, Vault, VaultNotInitializedError
 
 _PROVIDERS: dict[BackendType, OAuthProvider] = {
     "gdrive": GoogleOAuthProvider(),
@@ -96,10 +96,7 @@ def perform_delete_remote(master_password: str) -> None:
         raise NoRemoteVaultError("No remote vault found")
 
     remote_bytes = client.download_vault_file(remote_file_id)
-    try:
-        _decrypt_remote_vault(remote_bytes, master_password)
-    except RemoteVaultCorruptedError:
-        raise WrongPasswordError()
+    _decrypt_remote_vault(remote_bytes, master_password)
 
     client.delete_vault_file(remote_file_id)
 

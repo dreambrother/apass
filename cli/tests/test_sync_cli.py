@@ -248,3 +248,137 @@ def test_sync_pull_no_local_vault() -> None:
     assert "Synced with Google Drive" in result.output
     mock_vault.store_db.assert_called_once()
     mock_save_state.assert_called_once()
+
+
+def test_sync_delete_remote_success() -> None:
+    mock_client = MagicMock()
+    mock_client.find_vault_file.return_value = "remote_file_id"
+    mock_client.download_vault_file.return_value = b"encrypted_data"
+
+    mock_provider = MagicMock()
+    mock_provider.get_display_name.return_value = "Google Drive"
+    mock_provider.get_authenticated_client.return_value = mock_client
+
+    mock_state = MagicMock()
+    mock_state.remote_file_id = "remote_file_id"
+
+    with (
+        patch("apass.sync.operations.get_provider", return_value=mock_provider),
+        patch("apass.sync.operations.load_sync_state", return_value=mock_state),
+        patch("apass.sync.operations.save_sync_state") as mock_save_state,
+        patch("apass.sync.operations._decrypt_remote_vault"),
+    ):
+        result = runner.invoke(app, ["sync", "delete-remote", "--yes"], input="master123\n")
+
+    assert result.exit_code == 0
+    assert "Remote vault deleted" in result.output
+    mock_client.delete_vault_file.assert_called_once_with("remote_file_id")
+    assert mock_state.remote_file_id is None
+    assert mock_state.last_sync_at is None
+    mock_save_state.assert_called_once()
+
+
+def test_sync_delete_remote_with_confirm_yes() -> None:
+    mock_client = MagicMock()
+    mock_client.find_vault_file.return_value = "remote_file_id"
+    mock_client.download_vault_file.return_value = b"encrypted_data"
+
+    mock_provider = MagicMock()
+    mock_provider.get_display_name.return_value = "Google Drive"
+    mock_provider.get_authenticated_client.return_value = mock_client
+
+    mock_state = MagicMock()
+    mock_state.remote_file_id = "remote_file_id"
+
+    with (
+        patch("apass.sync.operations.get_provider", return_value=mock_provider),
+        patch("apass.sync.operations.load_sync_state", return_value=mock_state),
+        patch("apass.sync.operations.save_sync_state"),
+        patch("apass.sync.operations._decrypt_remote_vault"),
+    ):
+        result = runner.invoke(app, ["sync", "delete-remote"], input="master123\ny\n")
+
+    assert result.exit_code == 0
+    assert "Remote vault deleted" in result.output
+    mock_client.delete_vault_file.assert_called_once()
+
+
+def test_sync_delete_remote_cancelled() -> None:
+    mock_provider = MagicMock()
+    mock_provider.get_display_name.return_value = "Google Drive"
+
+    with patch("apass.sync.operations.get_provider", return_value=mock_provider):
+        result = runner.invoke(app, ["sync", "delete-remote"], input="master123\nn\n")
+
+    assert result.exit_code == 1
+    assert "Aborted" in result.output
+
+
+def test_sync_delete_remote_no_remote() -> None:
+    mock_client = MagicMock()
+    mock_client.find_vault_file.return_value = None
+
+    mock_provider = MagicMock()
+    mock_provider.get_authenticated_client.return_value = mock_client
+
+    mock_state = MagicMock()
+    mock_state.remote_file_id = None
+
+    with (
+        patch("apass.sync.operations.get_provider", return_value=mock_provider),
+        patch("apass.sync.operations.load_sync_state", return_value=mock_state),
+    ):
+        result = runner.invoke(app, ["sync", "delete-remote", "--yes"], input="master123\n")
+
+    assert result.exit_code == 1
+    assert "No remote vault" in result.output
+
+
+def test_sync_delete_remote_wrong_password() -> None:
+    from apass.sync.operations import RemoteVaultCorruptedError
+
+    mock_client = MagicMock()
+    mock_client.find_vault_file.return_value = "remote_file_id"
+    mock_client.download_vault_file.return_value = b"encrypted_data"
+
+    mock_provider = MagicMock()
+    mock_provider.get_authenticated_client.return_value = mock_client
+
+    mock_state = MagicMock()
+    mock_state.remote_file_id = "remote_file_id"
+
+    with (
+        patch("apass.sync.operations.get_provider", return_value=mock_provider),
+        patch("apass.sync.operations.load_sync_state", return_value=mock_state),
+        patch("apass.sync.operations._decrypt_remote_vault", side_effect=RemoteVaultCorruptedError("Wrong password")),
+    ):
+        result = runner.invoke(app, ["sync", "delete-remote", "--yes"], input="wrongpass\n")
+
+    assert result.exit_code == 1
+    assert "Wrong password" in result.output
+    mock_client.delete_vault_file.assert_not_called()
+
+
+def test_sync_delete_remote_cloud_error() -> None:
+    from apass.sync.backend import CloudApiError
+
+    mock_client = MagicMock()
+    mock_client.find_vault_file.return_value = "remote_file_id"
+    mock_client.download_vault_file.return_value = b"encrypted_data"
+    mock_client.delete_vault_file.side_effect = CloudApiError("API error")
+
+    mock_provider = MagicMock()
+    mock_provider.get_authenticated_client.return_value = mock_client
+
+    mock_state = MagicMock()
+    mock_state.remote_file_id = "remote_file_id"
+
+    with (
+        patch("apass.sync.operations.get_provider", return_value=mock_provider),
+        patch("apass.sync.operations.load_sync_state", return_value=mock_state),
+        patch("apass.sync.operations._decrypt_remote_vault"),
+    ):
+        result = runner.invoke(app, ["sync", "delete-remote", "--yes"], input="master123\n")
+
+    assert result.exit_code == 1
+    assert "API error" in result.output

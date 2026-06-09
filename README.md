@@ -17,7 +17,7 @@ A dead-simple cross-platform **A**nother **Pass**word manager.
 - [ ] Login store
 - [ ] Remove
 - [x] Cloud sync (Google Drive, Yandex Disk)
-- [ ] Delete remote vault file
+- [x] Delete remote vault file
 - [ ] Rotate
 
 ## CLI
@@ -139,6 +139,7 @@ poetry run apass sync login
 | `apass sync diff` | Preview what would be synced (dry run) |
 | `apass sync push` | Merge local + remote, upload to cloud |
 | `apass sync pull` | Merge remote + local, download from cloud |
+| `apass sync delete-remote [--yes]` | Permanently delete the remote vault file from cloud storage |
 | `apass sync backend gdrive\|yadisk` | Switch cloud storage backend |
 
 #### Storage details

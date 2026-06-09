@@ -56,3 +56,11 @@ class YandexDiskClient(SyncBackend):
             return None
         except Exception as e:
             raise CloudApiError(f"Failed to get file metadata: {e}") from e
+
+    def delete_vault_file(self, remote_id: str) -> None:
+        try:
+            self._client.remove(VAULT_PATH, permanently=True)
+        except PathNotFoundError:
+            raise CloudApiError("Vault file not found on Yandex Disk")
+        except Exception as e:
+            raise CloudApiError(f"Failed to delete vault file: {e}") from e

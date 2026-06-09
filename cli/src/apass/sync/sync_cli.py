@@ -154,6 +154,26 @@ def sync_backend(
     typer.echo(f"Switched to {provider.get_display_name()}")
 
 
+@sync_app.command("delete-remote")
+def sync_delete_remote(
+    master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, hidden=True)],
+    yes: t.Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation prompt")] = False,
+) -> None:
+    """Permanently delete the remote vault file from cloud storage"""
+    provider = operations.get_provider()
+
+    if not yes:
+        typer.confirm(
+            f"This will PERMANENTLY delete the encrypted vault from {provider.get_display_name()}. Continue?",
+            abort=True,
+        )
+
+    with _sync_error_handler():
+        operations.perform_delete_remote(master_password)
+
+    typer.echo(f"Remote vault deleted from {provider.get_display_name()}.")
+
+
 def _fail(message: str) -> t.NoReturn:
     """Print an error message in red and exit with code 1."""
     typer.secho(message, err=True, fg=typer.colors.RED)

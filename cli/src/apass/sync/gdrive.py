@@ -66,3 +66,9 @@ class GoogleDriveClient(SyncBackend):
         except Exception as e:
             raise CloudApiError(f"Failed to get file metadata: {e}") from e
         return result.get("modifiedTime")
+
+    def delete_vault_file(self, remote_id: str) -> None:
+        try:
+            self._service.files().delete(fileId=remote_id).execute()
+        except Exception as e:
+            raise CloudApiError(f"Failed to delete vault file: {e}") from e

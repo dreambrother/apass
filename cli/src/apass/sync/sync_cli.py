@@ -6,68 +6,76 @@ import typer
 
 from apass.config import get_db_path
 from apass.sync import operations
-from apass.sync.gdrive import DriveApiError
+from apass.sync.backend import CloudApiError, NotLoggedInError
 from apass.sync.merge import MergeResult
-from apass.sync.oauth import (
-    OAuthConfig,
-    delete_credentials,
-    get_user_email,
-    load_credentials,
-    load_oauth_config,
-    run_login_flow,
-    save_oauth_config,
-)
-from apass.sync.state import SyncState, load_sync_state, save_sync_state
+from apass.sync.state import BackendType, SyncState, load_sync_state, save_sync_state
 from apass.vault import Vault, VaultNotInitializedError, WrongPasswordError
 
-sync_app = typer.Typer(help="Sync vault with Google Drive")
+sync_app = typer.Typer(help="Sync vault with cloud storage")
 
 
 @sync_app.command("setup")
 def sync_setup(
-    client_id: t.Annotated[str, typer.Option(prompt="Google OAuth Client ID", hidden=True)],
-    client_secret: t.Annotated[str, typer.Option(prompt="Google OAuth Client Secret", hide_input=True, hidden=True)],
+    backend: t.Annotated[BackendType, typer.Option("--backend", "-b", help="Cloud storage backend")] = "gdrive",
+    client_id: t.Annotated[str, typer.Option("--client-id", prompt="OAuth Client ID", hidden=True)] = "",
+    client_secret: t.Annotated[str, typer.Option("--client-secret", prompt="OAuth Client Secret", hide_input=True, hidden=True)] = "",
 ) -> None:
-    """Configure Google Drive OAuth credentials (one-time setup)"""
-    config = OAuthConfig(client_id=client_id, client_secret=client_secret)
-    save_oauth_config(config)
-    typer.echo("OAuth credentials saved. Run 'apass sync login' to authorize.")
+    """Configure OAuth credentials (one-time setup)"""
+    if not client_id or not client_secret:
+        _fail("Client ID and Client Secret are required")
+
+    try:
+        provider = operations._PROVIDERS[backend]
+    except KeyError:
+        _fail(f"Unsupported backend: {backend}")
+
+    provider.save_config(client_id, client_secret)
+
+    state = load_sync_state()
+    state.backend = backend
+    save_sync_state(state)
+
+    typer.echo(f"{provider.get_display_name()} OAuth credentials saved. Run 'apass sync login' to authorize.")
 
 
 @sync_app.command("login")
 def sync_login() -> None:
-    """Authorize apass to access your Google Drive"""
-    config = load_oauth_config()
-    if not config:
+    """Authorize apass to access your cloud storage"""
+    provider = operations.get_provider()
+
+    if not provider.load_config():
         _fail("OAuth not configured. Run 'apass sync setup' first.")
 
     try:
-        creds = run_login_flow(config)
-        email = get_user_email(creds)
+        email = provider.run_login_flow()
     except Exception as e:
         _fail(f"Login failed: {e}")
 
-    state = SyncState(account_email=email)
+    state = load_sync_state()
+    state.account_email = email
     save_sync_state(state)
     typer.echo(f"Logged in as {email}")
 
 
 @sync_app.command("logout")
 def sync_logout() -> None:
-    """Remove Google Drive authorization"""
-    delete_credentials()
-    save_sync_state(SyncState())
-    typer.echo("Logged out from Google Drive")
+    """Remove cloud storage authorization"""
+    provider = operations.get_provider()
+    provider.delete_credentials()
+    save_sync_state(SyncState(backend=load_sync_state().backend))
+    typer.echo(f"Logged out from {provider.get_display_name()}")
 
 
 @sync_app.command("status")
 def sync_status() -> None:
     """Show sync status"""
     state = load_sync_state()
-    creds = load_credentials()
+    provider = operations.get_provider()
 
-    if not creds:
-        typer.echo("Not logged in to Google Drive")
+    typer.echo(f"Backend: {provider.get_display_name()}")
+
+    if not provider.is_logged_in():
+        typer.echo(f"Not logged in to {provider.get_display_name()}")
         return
 
     typer.echo(f"Logged in as: {state.account_email or 'unknown'}")
@@ -100,8 +108,9 @@ def sync_diff(
 def sync_push(
     master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, hidden=True)],
 ) -> None:
-    """Sync local vault to Google Drive (merge + upload)"""
+    """Sync local vault to cloud storage (merge + upload)"""
     vault = Vault(get_db_path())
+    provider = operations.get_provider()
 
     with _sync_error_handler():
         result = operations.perform_push(vault, master_password)
@@ -109,7 +118,7 @@ def sync_push(
     if result.merge_result:
         _print_merge_result(result.merge_result, header="Merged local and remote vaults.")
 
-    typer.echo("\nSynced with Google Drive.")
+    typer.echo(f"\nSynced with {provider.get_display_name()}.")
     typer.echo(f"Remote file ID: {result.remote_file_id}")
 
 
@@ -117,14 +126,32 @@ def sync_push(
 def sync_pull(
     master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, hidden=True)],
 ) -> None:
-    """Sync Google Drive vault to local (merge + download)"""
+    """Sync cloud storage vault to local (merge + download)"""
     vault = Vault(get_db_path())
+    provider = operations.get_provider()
 
     with _sync_error_handler():
         result = operations.perform_pull(vault, master_password)
 
     _print_merge_result(result, header="Merged remote and local vaults.")
-    typer.echo("\nSynced with Google Drive.")
+    typer.echo(f"\nSynced with {provider.get_display_name()}.")
+
+
+@sync_app.command("backend")
+def sync_backend(
+    backend: t.Annotated[BackendType, typer.Argument(help="Backend to switch to: gdrive or yadisk")],
+) -> None:
+    """Switch cloud storage backend"""
+    try:
+        provider = operations._PROVIDERS[backend]
+    except KeyError:
+        _fail(f"Unsupported backend: {backend}. Use 'gdrive' or 'yadisk'.")
+
+    state = load_sync_state()
+    state.backend = backend
+    save_sync_state(state)
+
+    typer.echo(f"Switched to {provider.get_display_name()}")
 
 
 def _fail(message: str) -> t.NoReturn:
@@ -137,7 +164,7 @@ def _fail(message: str) -> t.NoReturn:
 def _sync_error_handler() -> t.Generator[None]:
     try:
         yield
-    except operations.NotLoggedInError:
+    except NotLoggedInError:
         _fail("Not logged in. Run 'apass sync login' first.")
     except VaultNotInitializedError:
         _fail("Vault is not initialized. Run 'apass init' first.")
@@ -147,7 +174,9 @@ def _sync_error_handler() -> t.Generator[None]:
         _fail(str(e))
     except operations.NoRemoteVaultError as e:
         _fail(str(e))
-    except DriveApiError as e:
+    except operations.UnsupportedBackendError as e:
+        _fail(str(e))
+    except CloudApiError as e:
         _fail(str(e))
 
 

@@ -13,6 +13,7 @@ dependencies = [
     "google-api-python-client>=2,<3",
     "google-auth>=2,<3",
     "google-auth-oauthlib>=1,<2",
+    "yadisk>=3,<4",
 ]
 
 [tool.pytest.ini_options]
@@ -21,6 +22,7 @@ testpaths = ["tests"]
 [dependency-groups]
 dev = [
     "pytest>=8,<9",
+    "basedpyright (>=1.39.7,<2.0.0)",
 ]
 
 [project.scripts]

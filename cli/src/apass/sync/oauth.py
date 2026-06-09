@@ -5,6 +5,7 @@ from typing import cast
 
 from apass._atomic_write import atomic_write_bytes
 from apass.config import get_db_path
+from apass.sync.backend import SyncBackend
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -112,3 +113,38 @@ def get_user_email(creds: Credentials) -> str:
     )
     response.raise_for_status()
     return response.json()["email"]
+
+
+class GoogleOAuthProvider:
+    def load_config(self) -> bool:
+        return load_oauth_config() is not None
+
+    def save_config(self, client_id: str, client_secret: str) -> None:
+        config = OAuthConfig(client_id=client_id, client_secret=client_secret)
+        save_oauth_config(config)
+
+    def run_login_flow(self) -> str:
+        config = load_oauth_config()
+        if not config:
+            raise RuntimeError("OAuth not configured")
+        creds = run_login_flow(config)
+        return get_user_email(creds)
+
+    def is_logged_in(self) -> bool:
+        return load_credentials() is not None
+
+    def delete_credentials(self) -> None:
+        delete_credentials()
+
+    def get_display_name(self) -> str:
+        return "Google Drive"
+
+    def get_authenticated_client(self) -> SyncBackend:
+        from apass.sync.gdrive import GoogleDriveClient
+
+        creds = load_credentials()
+        if not creds:
+            from apass.sync.backend import NotLoggedInError
+            raise NotLoggedInError()
+        creds = refresh_credentials(creds)
+        return GoogleDriveClient(creds)

@@ -16,7 +16,7 @@ A dead-simple cross-platform **A**nother **Pass**word manager.
 - [x] Save
 - [ ] Login store
 - [ ] Remove
-- [x] Cloud sync (Google Drive)
+- [x] Cloud sync (Google Drive, Yandex Disk)
 - [ ] Delete remote vault file
 - [ ] Rotate
 
@@ -79,11 +79,13 @@ poetry run apass save github --force
 |---|---|---|---|
 | `--force` | `-f` | Overwrite existing entry | `false` |
 
-### Sync with Google Drive
+### Sync
 
-Sync your vault across devices via Google Drive. The vault file is stored in your Drive's hidden app data folder — only apass can access it.
+Sync your vault across devices via Google Drive or Yandex Disk.
 
 #### Setup
+
+**Google Drive:**
 
 1. **Register a Google Cloud project:**
    - Go to [Google Cloud Console](https://console.cloud.google.com/)
@@ -104,23 +106,45 @@ Sync your vault across devices via Google Drive. The vault file is stored in you
    # Enter client_id and client_secret when prompted
    ```
 
-3. **Login:**
+**Yandex Disk:**
+
+1. **Register a Yandex OAuth application:**
+   - Go to [Yandex OAuth](https://oauth.yandex.ru/client/new)
+   - Fill in the application name (e.g., `APass`)
+   - Enable **Web services** platform
+   - Under **Redirect URI**, add: `http://127.0.0.1:9000`
+   - Under **Yandex.Disk API**, select scopes: `cloud_api:disk.read`, `cloud_api:disk.write`
+   - Click **Create** and note the **Client ID** and **Client Secret**
+
+2. **Configure apass:**
    ```bash
-   poetry run apass sync login
-   # Browser opens for OAuth consent
+   poetry run apass sync setup --backend yadisk
+   # Enter client_id and client_secret when prompted
    ```
+
+**Login:**
+```bash
+poetry run apass sync login
+# Browser opens for OAuth consent
+```
 
 #### Commands
 
 | Command | Description |
 |---|---|
-| `apass sync setup` | Configure OAuth credentials (one-time) |
-| `apass sync login` | Authorize apass to access Google Drive |
+| `apass sync setup [-b gdrive\|yadisk]` | Configure OAuth credentials (one-time) |
+| `apass sync login` | Authorize apass to access cloud storage |
 | `apass sync logout` | Remove authorization |
-| `apass sync status` | Show sync status (email, file ID, last sync time) |
+| `apass sync status` | Show sync status (backend, email, file ID, last sync time) |
 | `apass sync diff` | Preview what would be synced (dry run) |
-| `apass sync push` | Merge local + remote, upload to Drive |
-| `apass sync pull` | Merge remote + local, download from Drive |
+| `apass sync push` | Merge local + remote, upload to cloud |
+| `apass sync pull` | Merge remote + local, download from cloud |
+| `apass sync backend gdrive\|yadisk` | Switch cloud storage backend |
+
+#### Storage details
+
+- **Google Drive:** vault stored in hidden app data folder — only apass can access it
+- **Yandex Disk:** vault stored at `/apass/vault.db` — visible in web interface
 
 #### Merge strategy
 

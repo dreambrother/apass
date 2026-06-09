@@ -2,11 +2,17 @@ import time
 from dataclasses import dataclass
 
 from apass.crypto import DecryptionError, VaultStructureError, decrypt, encrypt
-from apass.sync.gdrive import GoogleDriveClient
+from apass.sync.backend import NotLoggedInError, OAuthProvider, SyncBackend
 from apass.sync.merge import MergeResult, merge_dbs
-from apass.sync.oauth import load_credentials, refresh_credentials
-from apass.sync.state import load_sync_state, save_sync_state
+from apass.sync.oauth import GoogleOAuthProvider
+from apass.sync.state import BackendType, load_sync_state, save_sync_state
+from apass.sync.yandex_oauth import YandexOAuthProvider
 from apass.vault import PasswordDB, Vault, VaultNotInitializedError
+
+_PROVIDERS: dict[BackendType, OAuthProvider] = {
+    "gdrive": GoogleOAuthProvider(),
+    "yadisk": YandexOAuthProvider(),
+}
 
 
 def perform_push(vault: Vault, master_password: str) -> PushResult:
@@ -81,12 +87,16 @@ def compute_diff(vault: Vault, master_password: str) -> MergeResult | None:
     return merge_dbs(local_db, remote_db, prefer="local")
 
 
-def _get_authenticated_client() -> GoogleDriveClient:
-    creds = load_credentials()
-    if not creds:
-        raise NotLoggedInError()
-    creds = refresh_credentials(creds)
-    return GoogleDriveClient(creds)
+def get_provider() -> OAuthProvider:
+    state = load_sync_state()
+    provider = _PROVIDERS.get(state.backend)
+    if not provider:
+        raise UnsupportedBackendError(f"Unsupported backend: {state.backend}")
+    return provider
+
+
+def _get_authenticated_client() -> SyncBackend:
+    return get_provider().get_authenticated_client()
 
 
 def _decrypt_remote_vault(remote_bytes: bytes, master_password: str) -> PasswordDB:
@@ -111,13 +121,13 @@ class PushResult:
     remote_file_id: str
 
 
-class NotLoggedInError(Exception):
-    pass
-
-
 class RemoteVaultCorruptedError(Exception):
     pass
 
 
 class NoRemoteVaultError(Exception):
+    pass
+
+
+class UnsupportedBackendError(Exception):
     pass

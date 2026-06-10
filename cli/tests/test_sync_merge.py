@@ -17,10 +17,10 @@ def test_merge_empty_dbs() -> None:
 
 def test_merge_disjoint_entries() -> None:
     local = PasswordDB(entries=[
-        PasswordEntry("local1", "pass1", 1000),
+        PasswordEntry("local1", None, "pass1", 1000),
     ])
     remote = PasswordDB(entries=[
-        PasswordEntry("remote1", "pass2", 1000),
+        PasswordEntry("remote1", "user2", "pass2", 1000),
     ])
 
     result = merge_dbs(local, remote)
@@ -36,10 +36,10 @@ def test_merge_disjoint_entries() -> None:
 
 def test_merge_same_entry_local_newer() -> None:
     local = PasswordDB(entries=[
-        PasswordEntry("example", "local_pass", 2000),
+        PasswordEntry("example", "local_user", "local_pass", 2000),
     ])
     remote = PasswordDB(entries=[
-        PasswordEntry("example", "remote_pass", 1000),
+        PasswordEntry("example", "remote_user", "remote_pass", 1000),
     ])
 
     result = merge_dbs(local, remote)
@@ -47,6 +47,7 @@ def test_merge_same_entry_local_newer() -> None:
     assert len(result.merged_db.entries) == 1
     entry = result.merged_db.entries[0]
     assert entry.name == "example"
+    assert entry.login == "local_user"
     assert entry.password == "local_pass"
     assert entry.modified == 2000
     assert len(result.updated) == 0
@@ -56,10 +57,10 @@ def test_merge_same_entry_local_newer() -> None:
 
 def test_merge_same_entry_remote_newer() -> None:
     local = PasswordDB(entries=[
-        PasswordEntry("example", "local_pass", 1000),
+        PasswordEntry("example", "local_user", "local_pass", 1000),
     ])
     remote = PasswordDB(entries=[
-        PasswordEntry("example", "remote_pass", 2000),
+        PasswordEntry("example", "remote_user", "remote_pass", 2000),
     ])
 
     result = merge_dbs(local, remote)
@@ -67,6 +68,7 @@ def test_merge_same_entry_remote_newer() -> None:
     assert len(result.merged_db.entries) == 1
     entry = result.merged_db.entries[0]
     assert entry.name == "example"
+    assert entry.login == "remote_user"
     assert entry.password == "remote_pass"
     assert entry.modified == 2000
     assert len(result.updated) == 1
@@ -75,10 +77,10 @@ def test_merge_same_entry_remote_newer() -> None:
 
 def test_merge_same_entry_same_time_prefer_local() -> None:
     local = PasswordDB(entries=[
-        PasswordEntry("example", "local_pass", 1000),
+        PasswordEntry("example", None, "local_pass", 1000),
     ])
     remote = PasswordDB(entries=[
-        PasswordEntry("example", "remote_pass", 1000),
+        PasswordEntry("example", None, "remote_pass", 1000),
     ])
 
     result = merge_dbs(local, remote, prefer="local")
@@ -92,10 +94,10 @@ def test_merge_same_entry_same_time_prefer_local() -> None:
 
 def test_merge_same_entry_same_time_prefer_remote() -> None:
     local = PasswordDB(entries=[
-        PasswordEntry("example", "local_pass", 1000),
+        PasswordEntry("example", "user", "local_pass", 1000),
     ])
     remote = PasswordDB(entries=[
-        PasswordEntry("example", "remote_pass", 1000),
+        PasswordEntry("example", "user", "remote_pass", 1000),
     ])
 
     result = merge_dbs(local, remote, prefer="remote")
@@ -107,10 +109,10 @@ def test_merge_same_entry_same_time_prefer_remote() -> None:
 
 def test_merge_same_entry_identical() -> None:
     local = PasswordDB(entries=[
-        PasswordEntry("example", "same_pass", 1000),
+        PasswordEntry("example", "user", "same_pass", 1000),
     ])
     remote = PasswordDB(entries=[
-        PasswordEntry("example", "same_pass", 1000),
+        PasswordEntry("example", "user", "same_pass", 1000),
     ])
 
     result = merge_dbs(local, remote)
@@ -122,10 +124,10 @@ def test_merge_same_entry_identical() -> None:
 
 def test_merge_case_sensitive_names() -> None:
     local = PasswordDB(entries=[
-        PasswordEntry("Example", "pass1", 1000),
+        PasswordEntry("Example", None, "pass1", 1000),
     ])
     remote = PasswordDB(entries=[
-        PasswordEntry("example", "pass2", 2000),
+        PasswordEntry("example", None, "pass2", 2000),
     ])
 
     result = merge_dbs(local, remote)
@@ -137,16 +139,16 @@ def test_merge_case_sensitive_names() -> None:
 
 def test_merge_complex_scenario() -> None:
     local = PasswordDB(entries=[
-        PasswordEntry("keep_local", "pass1", 2000),
-        PasswordEntry("update_from_remote", "old", 1000),
-        PasswordEntry("local_only", "pass3", 1000),
-        PasswordEntry("unchanged", "same", 1000),
+        PasswordEntry("keep_local", None, "pass1", 2000),
+        PasswordEntry("update_from_remote", None, "old", 1000),
+        PasswordEntry("local_only", None, "pass3", 1000),
+        PasswordEntry("unchanged", "unch", "same", 1000),
     ])
     remote = PasswordDB(entries=[
-        PasswordEntry("keep_local", "remote", 1000),
-        PasswordEntry("update_from_remote", "new", 2000),
-        PasswordEntry("remote_only", "pass4", 1000),
-        PasswordEntry("unchanged", "same", 1000),
+        PasswordEntry("keep_local", None, "remote", 1000),
+        PasswordEntry("update_from_remote", None, "new", 2000),
+        PasswordEntry("remote_only", None, "pass4", 1000),
+        PasswordEntry("unchanged", "unch", "same", 1000),
     ])
 
     result = merge_dbs(local, remote)

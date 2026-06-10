@@ -40,6 +40,19 @@ def test_save_adds_entry(initialized_vault: Vault, master_password: str) -> None
     db = vault2._read_db(master_password)
     assert len(db.entries) == 1
     assert db.entries[0].name == "example"
+    assert db.entries[0].login is None
+    assert db.entries[0].password == "password123"
+
+
+def test_save_adds_entry_with_login(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.save("example", "password123", master_password, "example_user")
+
+    # Verify by reading back
+    vault2 = Vault(initialized_vault._vault_file)
+    db = vault2._read_db(master_password)
+    assert len(db.entries) == 1
+    assert db.entries[0].name == "example"
+    assert db.entries[0].login == "example_user"
     assert db.entries[0].password == "password123"
 
 
@@ -59,6 +72,19 @@ def test_save_raises_on_duplicate(initialized_vault: Vault, master_password: str
 
     with pytest.raises(EntryAlreadyExistsError):
         initialized_vault.save("example", "password456", master_password)
+
+
+def test_save_forced(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.save("example", "password123", master_password)
+    initialized_vault.save("example", "password456", master_password, "example_login", force=True)
+
+    # Verify by reading back
+    vault = Vault(initialized_vault._vault_file)
+    db = vault._read_db(master_password)
+    assert len(db.entries) == 1
+    assert db.entries[0].name == "example"
+    assert db.entries[0].login == "example_login"
+    assert db.entries[0].password == "password456"
 
 
 def test_read_db_raises_when_not_initialized(tmp_path: Path) -> None:

@@ -56,7 +56,7 @@ def test_create_prompts_for_password_and_stores() -> None:
         result = runner.invoke(app, ["create", "example"], input="master123\n")
 
     assert result.exit_code == 0
-    mock_vault.save.assert_called_once_with("example", "abc123", "master123", False)
+    mock_vault.save.assert_called_once_with("example", "abc123", "master123", None, force=False)
     mock_copy.assert_called_once_with("abc123")
     assert "Password for example copied to clipboard" in result.output
 
@@ -68,10 +68,21 @@ def test_create_all_params_passed() -> None:
         patch("apass.cli._get_vault", return_value=mock_vault),
         patch("apass.clipboard.copy") as mock_copy,
     ):
-        result = runner.invoke(app, ["create", "example", "-s", "15", "-d", "5", "-p", "2"], input="master123\n")
+        result = runner.invoke(
+            app,
+            [
+                "create",
+                "example",
+                "-l", "example_login",
+                "-s", "15",
+                "-d", "5",
+                "-p", "2"
+            ],
+            input="master123\n"
+        )
 
     assert result.exit_code == 0
-    mock_vault.save.assert_called_once_with("example", "abc123", "master123", False)
+    mock_vault.save.assert_called_once_with("example", "abc123", "master123", "example_login", force=False)
     mock_copy.assert_called_once_with("abc123")
     mock_genetator.assert_called_once_with(size=15, min_digits=5, min_special=2)
     assert "Password for example copied to clipboard" in result.output
@@ -259,19 +270,19 @@ def test_save_prompts_for_passwords_and_stores() -> None:
         result = runner.invoke(app, ["save", "example"], input="master123\nservice123\n")
 
     assert result.exit_code == 0
-    mock_vault.save.assert_called_once_with("example", "service123", "master123", False)
+    mock_vault.save.assert_called_once_with("example", "service123", "master123", None, False)
     assert "Password for example set successfully" in result.output
 
 
-def test_save_prompts_for_passwords_and_stores_force() -> None:
+def test_save_with_login_prompts_for_passwords_and_stores_force() -> None:
     mock_vault = MagicMock()
     with (
         patch("apass.cli._get_vault", return_value=mock_vault),
     ):
-        result = runner.invoke(app, ["save", "example", "--force"], input="master123\nservice123\n")
+        result = runner.invoke(app, ["save", "example", "-l", "test_login", "--force"], input="master123\nservice123\n")
 
     assert result.exit_code == 0
-    mock_vault.save.assert_called_once_with("example", "service123", "master123", True)
+    mock_vault.save.assert_called_once_with("example", "service123", "master123", "test_login", True)
     assert "Password for example set successfully" in result.output
 
 

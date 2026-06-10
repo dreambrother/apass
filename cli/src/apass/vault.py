@@ -47,12 +47,21 @@ class Vault:
         db = PasswordDB()
         self._store_db(db, master_password)
 
-    def save(self, service_name: str, service_password: str, master_password: str, force: bool = False) -> None:
+    def save(
+        self,
+        service_name: str,
+        service_password: str,
+        master_password: str,
+        service_login: str | None = None,
+        force: bool = False
+    ) -> None:
         db = self._read_db(master_password)
         for entry in db.entries:
             if entry.name == service_name:
                 if not force:
                     raise EntryAlreadyExistsError(service_name)
+                if service_login is not None:
+                    entry.login = service_login
                 entry.password = service_password
                 entry.modified = int(datetime.now(timezone.utc).timestamp())
                 break
@@ -60,6 +69,7 @@ class Vault:
             db.entries.append(
                 PasswordEntry(
                     service_name,
+                    service_login,
                     service_password,
                     int(datetime.now(timezone.utc).timestamp()),
                 )
@@ -111,7 +121,12 @@ class PasswordDB:
         if found_ver != CURRENT_DB_VERSION:
             raise UnsupportedDBVersionError(found_ver)
         entries = [
-            PasswordEntry(**{k: v for k, v in e.items() if k in {"name", "password", "modified"}})
+            PasswordEntry(
+                e["name"],
+                e.get("login"),
+                e["password"],
+                e["modified"]
+            )
             for e in parsed["entries"]
         ]
         return cls(ver=found_ver, entries=entries)
@@ -120,7 +135,6 @@ class PasswordDB:
 @dataclass
 class PasswordEntry:
     name: str
+    login: str | None
     password: str
     modified: int  # Unix timestamp (UTC)
-
-

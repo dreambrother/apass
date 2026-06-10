@@ -55,6 +55,7 @@ def create(
     size: t.Annotated[int, typer.Option("--size", "-s", help="Password size")] = generator.DEFAULT_PASSWORD_SIZE,
     min_digits: t.Annotated[int | None, typer.Option("--min-digits", "-d", help="Minimum number of digits (0 to disable)")] = None,
     min_special: t.Annotated[int | None, typer.Option("--min-special", "-p", help="Minimum number of special characters (0 to disable)")] = None,
+    login: t.Annotated[str | None, typer.Option("--login", "-l", help="Service/utility login")] = None,
 ) -> None:
     """Create new password and copy it to the clipboard"""
     try:
@@ -64,7 +65,7 @@ def create(
 
     vault = _get_vault()
     try:
-        vault.save(name, service_password, master_password, False)
+        vault.save(name, service_password, master_password, login, force=False)
     except VaultNotInitializedError:
         _fail("Vault is not initialized. Run 'apass init' first.")
     except WrongPasswordError:
@@ -106,12 +107,13 @@ def save(
     name: t.Annotated[str, typer.Argument(help="Service/utility name")],
     master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, hidden=True)],
     service_password: t.Annotated[str, typer.Option(prompt="Service password", hide_input=True, hidden=True)],
+    login: t.Annotated[str | None, typer.Option("--login", "-l", help="Service/utility login")] = None,
     force: t.Annotated[bool, typer.Option("-f", "--force", help="Overwrite existing value")] = False,
 ) -> None:
     """Save existing password"""
     vault = _get_vault()
     try:
-        vault.save(name, service_password, master_password, force)
+        vault.save(name, service_password, master_password, login, force)
     except VaultNotInitializedError:
         _fail("Vault is not initialized. Run 'apass init' first.")
     except WrongPasswordError:

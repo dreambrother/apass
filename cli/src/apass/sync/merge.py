@@ -38,7 +38,11 @@ def merge_dbs(
             winner = _resolve_conflict(local_entry, remote_entry, prefer)
             merged_entries.append(winner)
             if winner is local_entry:
-                if local_entry.modified == remote_entry.modified and local_entry.password == remote_entry.password:
+                if (
+                    local_entry.modified == remote_entry.modified
+                    and local_entry.login == remote_entry.login
+                    and local_entry.password == remote_entry.password
+                ):
                     unchanged_count += 1
                 else:
                     kept_local_with_conflict.append(local_entry)

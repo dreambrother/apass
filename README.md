@@ -14,11 +14,10 @@ A dead-simple cross-platform **A**nother **Pass**word manager.
 - [x] Create
 - [x] Get
 - [x] Save
-- [ ] Login store
 - [ ] Remove
+- [ ] Rotate
 - [x] Cloud sync (Google Drive, Yandex Disk)
 - [x] Delete remote vault file
-- [ ] Rotate
 
 ## CLI
 
@@ -57,6 +56,7 @@ poetry run apass create github --size 24 --min-digits 2 --min-special 2
 | `--size` | `-s` | Password length | 18 |
 | `--min-digits` | `-d` | Minimum number of digits (0 to disable) | — |
 | `--min-special` | `-p` | Minimum number of special characters (0 to disable) | — |
+| `--login` | `-l` | Service/utility login | — |
 
 #### `apass get <name>`
 
@@ -78,6 +78,7 @@ poetry run apass save github --force
 | Option | Short | Description | Default |
 |---|---|---|---|
 | `--force` | `-f` | Overwrite existing entry | `false` |
+| `--login` | `-l` | Service/utility login | — |
 
 ### Sync
 

@@ -30,11 +30,13 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
 
 ## Module map
 
-- `cli.py` — Typer app, entry point, basic CLI commands (`init`, `create`, `get`, `save`)
+- `cli.py` — Typer app, entry point, basic CLI commands (`init`, `create`, `get`, `save`);
+  `create` and `save` accept optional `--login` / `-l`
 - `vault.py` — `Vault` class with `init_db`, `save`, `search`, `read_db`, `store_db`;
-  data models (`PasswordDB`, `PasswordEntry`); custom exceptions
-  (`VaultNotInitializedError`, `EntryAlreadyExistsError`, `CorruptedVaultError`,
-  `WrongPasswordError`, `UnsupportedDBVersionError`); atomic file writes via tempfile+rename
+  data models (`PasswordDB`, `PasswordEntry` — includes `login: str | None`);
+  custom exceptions (`VaultNotInitializedError`, `EntryAlreadyExistsError`,
+  `CorruptedVaultError`, `WrongPasswordError`, `UnsupportedDBVersionError`);
+  atomic file writes via tempfile+rename
 - `crypto.py` — Encryption/decryption primitives: AES-256-GCM + Argon2id KDF,
   self-describing payload envelope (version, salt, KDF params, nonce, ciphertext);
   exceptions `VaultStructureError` and `DecryptionError`
@@ -47,7 +49,8 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
   - `backend.py` — `SyncBackend` Protocol, `OAuthProvider` Protocol, `CloudApiError`, `NotLoggedInError` exceptions
   - `state.py` — `SyncState` dataclass with `backend` field (`gdrive` or `yadisk`),
     `load_sync_state()`, `save_sync_state()`; stores state in `sync.json` next to vault file
-  - `merge.py` — `merge_dbs()` function, `MergeResult` dataclass (LWW by `name` + `modified`)
+  - `merge.py` — `merge_dbs()` function, `MergeResult` dataclass (LWW by `name` + `modified`;
+  `login` is included in equality checks for unchanged detection)
   - `oauth.py` — Google OAuth 2.0 flow and `GoogleOAuthProvider` class;
     stores config in `gdrive_oauth.json` and tokens in `gdrive_token.json` next to vault file
   - `gdrive.py` — `GoogleDriveClient` class implementing `SyncBackend` for Google Drive

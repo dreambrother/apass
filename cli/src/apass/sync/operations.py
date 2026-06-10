@@ -2,7 +2,7 @@ import time
 from dataclasses import dataclass
 
 from apass.crypto import DecryptionError, VaultStructureError, decrypt, encrypt
-from apass.sync.backend import NotLoggedInError, OAuthProvider, SyncBackend
+from apass.sync.backend import OAuthProvider, SyncBackend
 from apass.sync.merge import MergeResult, merge_dbs
 from apass.sync.oauth import GoogleOAuthProvider
 from apass.sync.state import BackendType, load_sync_state, save_sync_state

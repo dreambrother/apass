@@ -19,6 +19,10 @@ REDIRECT_PORT = 9000
 REDIRECT_URI = f"http://127.0.0.1:{REDIRECT_PORT}"
 
 
+class YandexOAuthError(Exception):
+    pass
+
+
 @dataclass
 class YandexOAuthConfig:
     client_id: str
@@ -200,8 +204,6 @@ def get_yandex_user_email(token: YandexToken) -> str:
     return data.get("default_email", "unknown")
 
 
-class YandexOAuthError(Exception):
-    pass
 
 
 class YandexOAuthProvider:

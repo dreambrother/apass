@@ -35,6 +35,22 @@ _MAX_PAYLOAD_BYTES = 100 * 1024 * 1024   # 100 MiB
 _MAX_PLAINTEXT_BYTES = 10 * 1024 * 1024  # 10 MiB
 
 
+class VaultStructureError(Exception):
+    """Payload envelope is structurally invalid — the file itself is the problem.
+
+    Raised *before* any expensive key derivation (Argon2).  Callers can use
+    this to tell the user that the vault file is corrupted, not the password.
+    """
+
+
+class DecryptionError(Exception):
+    """GCM authentication failed — most likely the password is wrong.
+
+    Raised *after* key derivation, so an attacker cannot obtain this signal
+    without paying the Argon2 cost.
+    """
+
+
 @dataclass
 class _Envelope:
     salt: bytes
@@ -185,22 +201,4 @@ def _derive_key(
     return kdf.derive(password.encode("utf-8"))
 
 
-# ------------------------------------------------------------------
-# Exceptions
-# ------------------------------------------------------------------
 
-
-class VaultStructureError(Exception):
-    """Payload envelope is structurally invalid — the file itself is the problem.
-
-    Raised *before* any expensive key derivation (Argon2).  Callers can use
-    this to tell the user that the vault file is corrupted, not the password.
-    """
-
-
-class DecryptionError(Exception):
-    """GCM authentication failed — most likely the password is wrong.
-
-    Raised *after* key derivation, so an attacker cannot obtain this signal
-    without paying the Argon2 cost.
-    """

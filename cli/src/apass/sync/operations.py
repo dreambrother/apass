@@ -9,6 +9,19 @@ from apass.sync.state import BackendType, load_sync_state, save_sync_state
 from apass.sync.yandex_oauth import YandexOAuthProvider
 from apass.vault import PasswordDB, Vault, VaultNotInitializedError
 
+
+class RemoteVaultCorruptedError(Exception):
+    pass
+
+
+class NoRemoteVaultError(Exception):
+    pass
+
+
+class UnsupportedBackendError(Exception):
+    pass
+
+
 _PROVIDERS: dict[BackendType, OAuthProvider] = {
     "gdrive": GoogleOAuthProvider(),
     "yadisk": YandexOAuthProvider(),
@@ -139,13 +152,3 @@ class PushResult:
     remote_file_id: str
 
 
-class RemoteVaultCorruptedError(Exception):
-    pass
-
-
-class NoRemoteVaultError(Exception):
-    pass
-
-
-class UnsupportedBackendError(Exception):
-    pass

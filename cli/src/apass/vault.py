@@ -9,6 +9,36 @@ from apass.crypto import DecryptionError, VaultStructureError, decrypt, encrypt
 CURRENT_DB_VERSION: int = 1
 
 
+class VaultNotInitializedError(Exception):
+    def __init__(self) -> None:
+        super().__init__("Vault is not initialized. Run 'apass init' first.")
+
+
+class EntryAlreadyExistsError(Exception):
+    def __init__(self, entry_name: str) -> None:
+        self.entry_name = entry_name
+        super().__init__(f"Entry for {entry_name!r} already exists")
+
+
+class CorruptedVaultError(Exception):
+    def __init__(self) -> None:
+        super().__init__("Vault file is corrupted or has an unsupported format")
+
+
+class WrongPasswordError(Exception):
+    def __init__(self) -> None:
+        super().__init__("Wrong password or corrupted vault")
+
+
+class UnsupportedDBVersionError(Exception):
+    def __init__(self, found_version: int) -> None:
+        self.found_version = found_version
+        super().__init__(
+            f"Unsupported vault version {found_version}. "
+            f"Expected {CURRENT_DB_VERSION}. Please upgrade apass."
+        )
+
+
 class Vault:
     def __init__(self, vault_file: Path) -> None:
         self._vault_file = vault_file
@@ -94,31 +124,3 @@ class PasswordEntry:
     modified: int  # Unix timestamp (UTC)
 
 
-class VaultNotInitializedError(Exception):
-    def __init__(self) -> None:
-        super().__init__("Vault is not initialized. Run 'apass init' first.")
-
-
-class EntryAlreadyExistsError(Exception):
-    def __init__(self, entry_name: str) -> None:
-        self.entry_name = entry_name
-        super().__init__(f"Entry for {entry_name!r} already exists")
-
-
-class CorruptedVaultError(Exception):
-    def __init__(self) -> None:
-        super().__init__("Vault file is corrupted or has an unsupported format")
-
-
-class WrongPasswordError(Exception):
-    def __init__(self) -> None:
-        super().__init__("Wrong password or corrupted vault")
-
-
-class UnsupportedDBVersionError(Exception):
-    def __init__(self, found_version: int) -> None:
-        self.found_version = found_version
-        super().__init__(
-            f"Unsupported vault version {found_version}. "
-            f"Expected {CURRENT_DB_VERSION}. Please upgrade apass."
-        )

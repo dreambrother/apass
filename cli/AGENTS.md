@@ -30,27 +30,32 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
 
 ## Module map
 
-- `cli.py` — Typer app, entry point, basic CLI commands (`init`, `create`, `get`, `save`);
-  `create` and `save` accept optional `--login` / `-l`
-- `vault.py` — `Vault` class with `init_db`, `save`, `search`, `read_db`, `store_db`;
-  data models (`PasswordDB`, `PasswordEntry` — includes `login: str | None`);
-  custom exceptions (`VaultNotInitializedError`, `EntryAlreadyExistsError`,
-  `CorruptedVaultError`, `WrongPasswordError`, `UnsupportedDBVersionError`);
-  atomic file writes via tempfile+rename
-- `crypto.py` — Encryption/decryption primitives: AES-256-GCM + Argon2id KDF,
-  self-describing payload envelope (version, salt, KDF params, nonce, ciphertext);
-  exceptions `VaultStructureError` and `DecryptionError`
+- `cli.py` — Typer app, entry point, basic CLI commands (`init`, `create`, `get`, `save`, `remove`, `restore`);
+  `create` and `save` accept optional `--login` / `-l`; `remove` moves to Recycle Bin
+- `vault.py` — `Vault` class backed by **KDBX 4** (pykeepass). Methods: `init_db`, `save`,
+  `search`, `read_db`, `store_db`, `remove` (→ Recycle Bin), `restore` (← from Recycle Bin).
+  Static helpers `read_db_from_bytes` / `write_db_to_bytes` for sync.
+  Data models: `PasswordDB` (has `entries` + `trashed`), `PasswordEntry`
+  (has `uuid: UUID`, `name`, `login: str | None`, `password`, `modified: int`).
+  Custom exceptions: `VaultNotInitializedError`, `EntryAlreadyExistsError`,
+  `EntryNotFoundError`, `CorruptedVaultError`, `WrongPasswordError`.
+  Atomic file writes are handled by pykeepass internally (writes to `.tmp` then `rename`).
 - `generator.py` — Password generation with configurable size and minimum
   digit/special character guarantees (`create_password`)
-- `config.py` — Database path resolution: `APASS_DB_PATH` env var or `~/.apass/vault.db`
+- `config.py` — Database path resolution: `APASS_DB_PATH` env var or `~/.apass/vault.kdbx`
 - `_atomic_write.py` — `atomic_write_bytes()`: atomic file write via tempfile+fsync+rename
+  (still used by sync state and OAuth token files)
 - `clipboard.py` — Cross-platform clipboard integration (`pbcopy` / `xclip` / `clip`)
 - `sync/` — Cloud storage sync package:
   - `backend.py` — `SyncBackend` Protocol, `OAuthProvider` Protocol, `CloudApiError`, `NotLoggedInError` exceptions
   - `state.py` — `SyncState` dataclass with `backend` field (`gdrive` or `yadisk`),
     `load_sync_state()`, `save_sync_state()`; stores state in `sync.json` next to vault file
-  - `merge.py` — `merge_dbs()` function, `MergeResult` dataclass (LWW by `name` + `modified`;
-  `login` is included in equality checks for unchanged detection)
+  - `merge.py` — `merge_dbs()` function, `MergeResult` dataclass.
+  Merge key: entry `uuid` (standard KDBX UUID). LWW by `modified` timestamp;
+  `login` is included in equality checks for unchanged detection.
+  Trashed entries (KDBX Recycle Bin) are tracked separately and merged with the
+  same LWW rule — the side with the newer modification time wins, regardless of
+  alive vs. trashed state.
   - `oauth.py` — Google OAuth 2.0 flow and `GoogleOAuthProvider` class;
     stores config in `gdrive_oauth.json` and tokens in `gdrive_token.json` next to vault file
   - `gdrive.py` — `GoogleDriveClient` class implementing `SyncBackend` for Google Drive

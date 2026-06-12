@@ -321,12 +321,12 @@ def test_remove_single_match() -> None:
     with (
         patch("apass.cli._get_vault", return_value=mock_vault),
     ):
-        result = runner.invoke(app, ["remove", "example"], input="master123\ny\n")
+        result = runner.invoke(app, ["remove", "example"], input="master123\n")
 
     assert result.exit_code == 0
     mock_vault.remove.assert_called_once_with("example", "master123")
-    assert "Continue?" in result.output
-    assert "Password for example is removed" in result.output
+    assert "Recycle Bin" in result.output
+    assert "Password for example moved to Recycle Bin" in result.output
 
 
 def test_remove_multiple_matches_prompts_for_choice() -> None:
@@ -346,7 +346,7 @@ def test_remove_multiple_matches_prompts_for_choice() -> None:
     with (
         patch("apass.cli._get_vault", return_value=mock_vault),
     ):
-        result = runner.invoke(app, ["remove", "example", "-y"], input="master123\n2\n")
+        result = runner.invoke(app, ["remove", "example"], input="master123\n2\n")
 
     assert result.exit_code == 0
     mock_vault.remove.assert_called_once_with("example.org", "master123")
@@ -354,7 +354,7 @@ def test_remove_multiple_matches_prompts_for_choice() -> None:
     assert "1: example.com" in result.output
     assert "2: example.org" in result.output
     assert "3: example.net" in result.output
-    assert "Password for example.org is removed" in result.output
+    assert "Password for example.org moved to Recycle Bin" in result.output
 
 
 def test_remove_multiple_matches_default_choice() -> None:
@@ -372,7 +372,53 @@ def test_remove_multiple_matches_default_choice() -> None:
     with (
         patch("apass.cli._get_vault", return_value=mock_vault),
     ):
-        result = runner.invoke(app, ["remove", "foo", "-y"], input="master123\n\n")
+        result = runner.invoke(app, ["remove", "foo"], input="master123\n\n")
 
     assert result.exit_code == 0
-    assert "Password for foo.com is removed" in result.output
+    assert "Password for foo.com moved to Recycle Bin" in result.output
+
+
+def test_restore_single_match() -> None:
+    from uuid import uuid4
+    from apass.vault import PasswordEntry
+
+    mock_entry = PasswordEntry(uuid=uuid4(), name="example", login="u", password="s3cret", modified=1)
+
+    mock_vault = MagicMock()
+    mock_vault.list_trashed.return_value = [mock_entry]
+
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(app, ["restore", "example"], input="master123\n")
+
+    assert result.exit_code == 0
+    mock_vault.list_trashed.assert_called_once_with("example", "master123")
+    mock_vault.restore.assert_called_once_with("example", "master123")
+    assert "Password for example restored from Recycle Bin" in result.output
+
+
+def test_restore_no_matches() -> None:
+    mock_vault = MagicMock()
+    mock_vault.list_trashed.return_value = []
+
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(app, ["restore", "missing"], input="master123\n")
+
+    assert result.exit_code == 1
+    assert "No trashed entries found" in result.output
+
+
+def test_restore_fails_when_vault_not_initialized() -> None:
+    mock_vault = MagicMock()
+    mock_vault.list_trashed.side_effect = VaultNotInitializedError()
+
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(app, ["restore", "x"], input="master123\n")
+
+    assert result.exit_code == 1
+    assert "not initialized" in result.output

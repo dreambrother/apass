@@ -1,14 +1,57 @@
 from pathlib import Path
 import random
 import string
+import tempfile
+from typing import Any, cast
+
+import pykeepass
+import pykeepass.pykeepass as _pk
+import pytest
+from construct import Container
 
 from apass.vault import Vault
-import pytest
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _fast_argon2_blank():
+    """Replace pykeepass's blank database with a low-KDF copy.
+
+    pykeepass's bundled ``blank_database.kdbx`` uses Argon2 with
+    ``M=64 MiB, I=14, P=2`` which makes every ``PyKeePass`` open/save
+    take ~0.4s. Generating a single low-cost blank once and pointing
+    ``BLANK_DATABASE_LOCATION`` at it drops that to ~microseconds
+    while keeping the full KDBX4 + Argon2id code path exercised.
+    Production code is untouched.
+    """
+    tmp = Path(tempfile.mkdtemp(prefix="apass-tests-"))
+    new_blank = tmp / "blank.kdbx"
+
+    kp = cast(Any, pykeepass.create_database(str(new_blank), password=_pk.BLANK_DATABASE_PASSWORD))
+    p = kp.kdbx.header.value.dynamic_header.kdf_parameters.data.dict
+    new_items = [
+        Container(
+            type=p[k].type,
+            key=p[k].key,
+            value=(1 if k == "I" else 8192 if k == "M" else 1 if k == "P" else p[k].value),
+            next_byte=p[k].next_byte,
+        )
+        for k in p
+    ]
+    p.clear()
+    p.update({item["key"]: item for item in new_items})
+    # Drop the cached raw header bytes so construct re-encodes the mutated value
+    del kp.kdbx.header.data
+    kp.save()
+
+    original_location = _pk.BLANK_DATABASE_LOCATION
+    _pk.BLANK_DATABASE_LOCATION = str(new_blank)
+    yield
+    _pk.BLANK_DATABASE_LOCATION = original_location
 
 
 @pytest.fixture
 def vault_file(tmp_path: Path) -> Path:
-    return tmp_path / "vault.db"
+    return tmp_path / "vault.kdbx"
 
 
 @pytest.fixture

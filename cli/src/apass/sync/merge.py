@@ -13,43 +13,58 @@ class MergeResult:
     unchanged_count: int = 0
 
 
-def merge_dbs(local: PasswordDB, remote: PasswordDB) -> MergeResult:
-    local_by_name = {e.name: e for e in local.entries}
-    remote_by_name = {e.name: e for e in remote.entries}
+@dataclass
+class _Side:
+    entry: PasswordEntry
+    is_trashed: bool
+    is_local: bool
 
-    merged_entries: list[PasswordEntry] = []
+
+def merge_dbs(local: PasswordDB, remote: PasswordDB) -> MergeResult:
+    local_by_uuid = _index(local, is_local=True)
+    remote_by_uuid = _index(remote, is_local=False)
+
+    all_uuids = set(local_by_uuid) | set(remote_by_uuid)
+
+    merged_alive: list[PasswordEntry] = []
+    merged_trash: list[PasswordEntry] = []
+
     added: list[PasswordEntry] = []
     updated: list[PasswordEntry] = []
     kept_locally_only: list[PasswordEntry] = []
     kept_local_with_conflict: list[PasswordEntry] = []
     unchanged_count = 0
 
-    for name, local_entry in local_by_name.items():
-        if name not in remote_by_name:
-            merged_entries.append(local_entry)
-            kept_locally_only.append(local_entry)
+    for uid in all_uuids:
+        sides = local_by_uuid.get(uid, []) + remote_by_uuid.get(uid, [])
+        winner = _pick_winner(sides)
+        if winner.is_trashed:
+            merged_trash.append(winner.entry)
         else:
-            remote_entry = remote_by_name[name]
-            winner = _resolve_conflict(local_entry, remote_entry)
-            merged_entries.append(winner)
-            if winner is local_entry:
-                if (
-                    local_entry.modified == remote_entry.modified
-                    and local_entry.login == remote_entry.login
-                    and local_entry.password == remote_entry.password
-                ):
-                    unchanged_count += 1
-                else:
-                    kept_local_with_conflict.append(local_entry)
+            merged_alive.append(winner.entry)
+
+        locals_ = [s for s in sides if s.is_local]
+        remotes = [s for s in sides if not s.is_local]
+
+        if len(sides) == 1:
+            if sides[0].is_local:
+                kept_locally_only.append(winner.entry)
             else:
-                updated.append(remote_entry)
+                added.append(winner.entry)
+            continue
 
-    for name, remote_entry in remote_by_name.items():
-        if name not in local_by_name:
-            merged_entries.append(remote_entry)
-            added.append(remote_entry)
+        local_entry = locals_[0].entry if locals_ else None
+        remote_entry = remotes[0].entry if remotes else None
 
-    merged_db = PasswordDB(ver=local.ver, entries=merged_entries)
+        if local_entry is not None and remote_entry is not None:
+            if winner.is_local and _same_content(local_entry, remote_entry):
+                unchanged_count += 1
+            elif winner.is_local:
+                kept_local_with_conflict.append(winner.entry)
+            else:
+                updated.append(winner.entry)
+
+    merged_db = PasswordDB(ver=local.ver, entries=merged_alive, trashed=merged_trash)
     return MergeResult(
         merged_db=merged_db,
         added=added,
@@ -60,11 +75,22 @@ def merge_dbs(local: PasswordDB, remote: PasswordDB) -> MergeResult:
     )
 
 
-def _resolve_conflict(local: PasswordEntry, remote: PasswordEntry) -> PasswordEntry:
-    if local.modified < remote.modified:
-        return remote
-    if local.modified > remote.modified:
-        return local
-    if local.password == remote.password:
-        return local
-    return local
+def _index(db: PasswordDB, *, is_local: bool) -> dict[object, list[_Side]]:
+    result: dict[object, list[_Side]] = {}
+    for e in db.entries:
+        result.setdefault(e.uuid, []).append(_Side(e, False, is_local))
+    for e in db.trashed:
+        result.setdefault(e.uuid, []).append(_Side(e, True, is_local))
+    return result
+
+
+def _pick_winner(sides: list[_Side]) -> _Side:
+    return max(sides, key=lambda s: (s.entry.modified, 1 if s.is_local else 0))
+
+
+def _same_content(a: PasswordEntry, b: PasswordEntry) -> bool:
+    return (
+        a.login == b.login
+        and a.password == b.password
+        and a.modified == b.modified
+    )

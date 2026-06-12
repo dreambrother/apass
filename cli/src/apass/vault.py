@@ -1,12 +1,21 @@
-import json
-from dataclasses import asdict, dataclass, field
+import base64
+import io
+import tempfile
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
+from uuid import UUID
 
-from apass._atomic_write import atomic_write_bytes
-from apass.crypto import DecryptionError, VaultStructureError, decrypt, encrypt
+from pykeepass import PyKeePass, create_database
+from pykeepass.entry import Entry
+from pykeepass.exceptions import (
+    CredentialsError,
+    HeaderChecksumError,
+    PayloadChecksumError,
+)
 
-CURRENT_DB_VERSION: int = 1
+CURRENT_DB_VERSION: int = 4
 
 
 class VaultNotInitializedError(Exception):
@@ -34,22 +43,12 @@ class WrongPasswordError(Exception):
         super().__init__("Wrong password or corrupted vault")
 
 
-class UnsupportedDBVersionError(Exception):
-    def __init__(self, found_version: int) -> None:
-        self.found_version = found_version
-        super().__init__(
-            f"Unsupported vault version {found_version}. "
-            f"Expected {CURRENT_DB_VERSION}. Please upgrade apass."
-        )
-
-
 class Vault:
     def __init__(self, vault_file: Path) -> None:
         self._vault_file = vault_file
 
     def init_db(self, master_password: str) -> None:
-        db = PasswordDB()
-        self._store_db(db, master_password)
+        create_database(self._vault_file, password=master_password)
 
     def save(
         self,
@@ -57,108 +56,207 @@ class Vault:
         service_password: str,
         master_password: str,
         service_login: str | None = None,
-        force: bool = False
+        force: bool = False,
     ) -> None:
-        db = self._read_db(master_password)
-        for entry in db.entries:
-            if entry.name == service_name:
-                if not force:
-                    raise EntryAlreadyExistsError(service_name)
-                if service_login is not None:
-                    entry.login = service_login
-                entry.password = service_password
-                entry.modified = int(datetime.now(timezone.utc).timestamp())
-                break
+        kp = self._load(master_password)
+        existing = self._find_alive(kp, service_name)
+        login = service_login if service_login is not None else ""
+        if existing is not None:
+            if not force:
+                raise EntryAlreadyExistsError(service_name)
+            existing.password = service_password
+            if service_login is not None:
+                existing.username = login
+            existing.touch(modify=True)
         else:
-            db.entries.append(
-                PasswordEntry(
-                    service_name,
-                    service_login,
-                    service_password,
-                    int(datetime.now(timezone.utc).timestamp()),
-                )
+            entry = kp.add_entry(
+                kp.root_group,
+                service_name,
+                login,
+                service_password,
             )
-        self._store_db(db, master_password)
+            entry.touch(modify=True)
+        kp.save()
 
     def search(self, query: str, master_password: str) -> list[PasswordEntry]:
-        db = self._read_db(master_password)
-        return [entry for entry in db.entries if query.lower() in entry.name.lower()]
+        kp: Any = self._load(master_password)
+        return [
+            Vault._to_entry(e)
+            for e in kp.entries
+            if not self._is_trashed(kp, e) and self._matches(e, query)
+        ]
 
     def read_db(self, master_password: str) -> PasswordDB:
-        return self._read_db(master_password)
+        kp: Any = self._load(master_password)
+        entries = [Vault._to_entry(e) for e in kp.entries if not self._is_trashed(kp, e)]
+        trashed = [Vault._to_entry(e) for e in kp.entries if self._is_trashed(kp, e)]
+        return PasswordDB(ver=CURRENT_DB_VERSION, entries=entries, trashed=trashed)
 
     def store_db(self, db: PasswordDB, master_password: str) -> None:
-        self._store_db(db, master_password)
+        kp: Any = self._load(master_password)
+        for e in list(kp.entries):
+            kp.delete_entry(e)
+        for entry in db.entries:
+            kp_entry = kp.add_entry(
+                kp.root_group,
+                entry.name,
+                entry.login or "",
+                entry.password,
+            )
+            Vault._set_entry_uuid(kp_entry, entry.uuid)
+            Vault._set_entry_mtime(kp_entry, entry.modified)
+        for entry in db.trashed:
+            kp_entry = kp.add_entry(
+                kp.root_group,
+                entry.name,
+                entry.login or "",
+                entry.password,
+            )
+            Vault._set_entry_uuid(kp_entry, entry.uuid)
+            Vault._set_entry_mtime(kp_entry, entry.modified)
+            kp.trash_entry(kp_entry)
+        kp.save()
 
     def remove(self, name: str, master_password: str) -> None:
-        db = self._read_db(master_password)
-        found = next((e for e in db.entries if e.name == name), None)
-        if found is None:
+        kp: Any = self._load(master_password)
+        entry = self._find_alive(kp, name)
+        if entry is None:
             raise EntryNotFoundError(name)
+        entry.touch(modify=True)
+        kp.trash_entry(entry)
+        kp.save()
 
-        db.entries.remove(found)
-        db.tombstones.append(Tombstone(name, int(datetime.now(timezone.utc).timestamp())))
-        self._store_db(db, master_password)
+    def restore(self, name: str, master_password: str) -> None:
+        kp: Any = self._load(master_password)
+        entry = self._find_trashed(kp, name)
+        if entry is None:
+            raise EntryNotFoundError(name)
+        kp.move_entry(entry, kp.root_group)
+        entry.touch(modify=True)
+        kp.save()
 
-    def _read_db(self, master_password: str) -> PasswordDB:
+    def list_trashed(self, query: str, master_password: str) -> list[PasswordEntry]:
+        kp: Any = self._load(master_password)
+        recycle = kp.recyclebin_group
+        if recycle is None:
+            return []
+        return [
+            Vault._to_entry(e)
+            for e in recycle.entries
+            if e.title and query.lower() in e.title.lower()
+        ]
+
+    @staticmethod
+    def read_db_from_bytes(data: bytes, master_password: str) -> PasswordDB:
+        try:
+            kp: Any = PyKeePass(io.BytesIO(data), password=master_password)
+        except CredentialsError as e:
+            raise WrongPasswordError() from e
+        except (HeaderChecksumError, PayloadChecksumError) as e:
+            raise CorruptedVaultError() from e
+        except Exception as e:
+            raise CorruptedVaultError() from e
+
+        def is_trashed(entry: Entry) -> bool:
+            recycle = kp.recyclebin_group
+            return recycle is not None and entry in recycle.entries
+
+        entries = [Vault._to_entry(e) for e in kp.entries if not is_trashed(e)]
+        trashed = [Vault._to_entry(e) for e in kp.entries if is_trashed(e)]
+        return PasswordDB(ver=CURRENT_DB_VERSION, entries=entries, trashed=trashed)
+
+    @staticmethod
+    def write_db_to_bytes(db: PasswordDB, master_password: str) -> bytes:
+        buf = io.BytesIO()
+        with tempfile.NamedTemporaryFile(suffix=".kdbx") as tmp:
+            kp: Any = create_database(Path(tmp.name), password=master_password)
+            for entry in db.entries:
+                kp_entry = kp.add_entry(
+                    kp.root_group,
+                    entry.name,
+                    entry.login or "",
+                    entry.password,
+                )
+                Vault._set_entry_uuid(kp_entry, entry.uuid)
+                Vault._set_entry_mtime(kp_entry, entry.modified)
+            for entry in db.trashed:
+                kp_entry = kp.add_entry(
+                    kp.root_group,
+                    entry.name,
+                    entry.login or "",
+                    entry.password,
+                )
+                Vault._set_entry_uuid(kp_entry, entry.uuid)
+                Vault._set_entry_mtime(kp_entry, entry.modified)
+                kp.trash_entry(kp_entry)
+            kp.save(buf)
+        return buf.getvalue()
+
+    @staticmethod
+    def _set_entry_uuid(kp_entry: Entry, target_uuid: UUID) -> None:
+        kp_entry._element.find('UUID').text = base64.b64encode(target_uuid.bytes).decode('utf-8')
+
+    @staticmethod
+    def _set_entry_mtime(kp_entry: Entry, modified: int) -> None:
+        kp_entry.mtime = datetime.fromtimestamp(modified, tz=timezone.utc)
+
+    def _load(self, master_password: str) -> Any:
         if not self._vault_file.exists():
             raise VaultNotInitializedError()
-
-        payload = self._vault_file.read_bytes()
         try:
-            plaintext = decrypt(payload, master_password)
-        except VaultStructureError:
-            raise CorruptedVaultError() from None
-        except DecryptionError:
-            raise WrongPasswordError() from None
+            return PyKeePass(str(self._vault_file), password=master_password)
+        except CredentialsError as e:
+            raise WrongPasswordError() from e
+        except (HeaderChecksumError, PayloadChecksumError) as e:
+            raise CorruptedVaultError() from e
+        except Exception as e:
+            raise CorruptedVaultError() from e
 
-        return PasswordDB.deserialize(plaintext)
+    def _is_trashed(self, kp: Any, entry: Entry) -> bool:
+        recycle = kp.recyclebin_group
+        return recycle is not None and entry in recycle.entries
 
-    def _store_db(self, db: PasswordDB, master_password: str) -> None:
-        plaintext = db.serialize()
-        payload = encrypt(plaintext, master_password)
-        atomic_write_bytes(self._vault_file, payload)
+    def _find_alive(self, kp: Any, name: str) -> Entry | None:
+        for e in kp.entries:
+            if e.title == name and not self._is_trashed(kp, e):
+                return e
+        return None
+
+    def _find_trashed(self, kp: Any, name: str) -> Entry | None:
+        for e in kp.entries:
+            if e.title == name and self._is_trashed(kp, e):
+                return e
+        return None
+
+    def _matches(self, entry: Entry, query: str) -> bool:
+        if entry.title is None:
+            return False
+        return query.lower() in entry.title.lower()
+
+    @staticmethod
+    def _to_entry(kp_entry: Entry) -> PasswordEntry:
+        mtime = kp_entry.mtime
+        modified = int(mtime.timestamp()) if mtime is not None else 0
+        return PasswordEntry(
+            uuid=kp_entry.uuid,
+            name=kp_entry.title or "",
+            login=kp_entry.username,
+            password=kp_entry.password or "",
+            modified=modified,
+        )
 
 
 @dataclass
 class PasswordDB:
     ver: int = CURRENT_DB_VERSION
     entries: list[PasswordEntry] = field(default_factory=list)
-    tombstones: list[Tombstone] = field(default_factory=list)
-
-    def serialize(self) -> bytes:
-        return json.dumps(asdict(self), ensure_ascii=False).encode("utf-8")
-
-    @classmethod
-    def deserialize(cls, data: bytes) -> PasswordDB:
-        parsed = json.loads(data)
-        found_ver = parsed.get("ver")
-        if found_ver != CURRENT_DB_VERSION:
-            raise UnsupportedDBVersionError(found_ver)
-        entries = [
-            PasswordEntry(
-                e["name"],
-                e.get("login"),
-                e["password"],
-                e["modified"]
-            )
-            for e in parsed["entries"]
-        ]
-        tombstones = [
-            Tombstone(t["name"], t["modified"]) for t in parsed["tombstones"]
-        ]
-        return cls(ver=found_ver, entries=entries, tombstones=tombstones)
+    trashed: list[PasswordEntry] = field(default_factory=list)
 
 
 @dataclass
 class PasswordEntry:
+    uuid: UUID
     name: str
     login: str | None
     password: str
     modified: int  # Unix timestamp (UTC)
-
-
-@dataclass
-class Tombstone:
-    name: str
-    modified: int  # Unix timestamp (UTC); when the delete happened

@@ -6,7 +6,7 @@ A dead-simple cross-platform **A**nother **Pass**word manager.
 
 ## Status
 
-**Under active development.** CLI is functional — generates a password, copies it to the clipboard, and persists it in an encrypted local vault.
+**Under development.** CLI is functional, Android app is planned.
 
 ## CLI Features
 
@@ -14,7 +14,9 @@ A dead-simple cross-platform **A**nother **Pass**word manager.
 - [x] Create
 - [x] Get
 - [x] Save
-- [ ] Remove
+- [x] Remove (moves entry to Recycle Bin)
+- [ ] Remove from bin
+- [x] Restore (recover entry from Recycle Bin)
 - [ ] Rotate
 - [x] Cloud sync (Google Drive, Yandex Disk)
 - [x] Delete remote vault file
@@ -79,6 +81,22 @@ poetry run apass save github --force
 |---|---|---|---|
 | `--force` | `-f` | Overwrite existing entry | `false` |
 | `--login` | `-l` | Service/utility login | — |
+
+#### `apass remove <name>`
+
+Move an entry to the Recycle Bin. It can be recovered with `apass restore`.
+
+```bash
+poetry run apass remove github
+```
+
+#### `apass restore <name>`
+
+Restore an entry from the Recycle Bin. Searches trashed entries by name (substring, case-insensitive). If multiple match, prompts to choose one.
+
+```bash
+poetry run apass restore github
+```
 
 ### Sync
 
@@ -145,49 +163,56 @@ poetry run apass sync login
 #### Storage details
 
 - **Google Drive:** vault stored in hidden app data folder — only apass can access it
-- **Yandex Disk:** vault stored at `/apass/vault.db` — visible in web interface
+- **Yandex Disk:** vault stored at `/apass/vault.kdbx` — visible in web interface
 
 #### Merge strategy
 
-- Entries are merged by `name` (case-sensitive)
-- Conflicts resolved by last-write-wins using `modified` timestamp
+- Entries are merged by `uuid` (standard KDBX entry identifier)
+- Conflicts resolved by last-write-wins using the entry's modification time
 - On equal timestamps: local wins
+- Deletions are stored in the KDBX Recycle Bin; the merge also propagates them with LWW
 - No interactive conflict resolution in v1
 
 ### Environment variables
 
 | Variable | Description |
 |---|---|
-| `APASS_DB_PATH` | Path to the vault file (default: `~/.apass/vault.db`) |
+| `APASS_DB_PATH` | Path to the vault file (default: `~/.apass/vault.kdbx`) |
 
 ## Android
 
-TODO. Mobile client development begins after CLI and vault format stabilize.
+Mobile clients (KeePassDX, KeePass2Android, KeePassXC) can open the same vault file directly.
 
-## Encryption
+## Encryption & compatibility
 
-The vault file is encrypted using **Argon2id + AES-256-GCM**.
+The vault file uses the **KDBX 4** format (KeePass 2.x) and is compatible with:
 
-### How it works
+- KeePassXC (Linux, macOS, Windows)
+- KeePassDX and KeePass2Android (Android)
+- Strongbox (iOS / macOS)
+- KeeWeb (web)
+- Any other KeePass-compatible client
 
-1. **Key derivation** — 32-byte salt + master password → Argon2id → 256-bit key.
-2. **Encryption** — plaintext (JSON-serialized vault) is encrypted with AES-256-GCM using a random 12-byte nonce.
-3. **File format** — `salt(16) || nonce(12) || ciphertext + tag`.
+Under the hood:
 
-Argon2id parameters: `iterations=3`, `memory_cost=65536` (64 MB), `lanes=4`.
+1. **Key derivation** — master password → Argon2id (KDBX 4 default) → 256-bit key.
+2. **Encryption** — XML payload is encrypted with AES-256-CBC + HMAC-SHA256 (KDBX 4 defaults).
+3. **File format** — KDBX 4 envelope as specified by the [KeePass file format docs](https://keepass.info/help/kb/kdbx.html).
+
+The Recycle Bin is the standard KDBX "Recycle Bin" group; entries in it are considered deleted by apass and excluded from search/get.
 
 ### Brute-force resistance
 
-The bottleneck is Argon2id, not AES. Even with unlimited GPU/ASIC hardware, each password guess requires 64 MB of RAM and 3 passes over it. This makes brute-force attacks orders of magnitude slower than PBKDF2.
+The bottleneck is Argon2id, not AES. With KDBX 4 defaults, each password guess requires significant RAM and CPU. This makes brute-force attacks orders of magnitude slower than PBKDF2.
 
 | Password strength | Entropy | Time to crack (8× RTX 4090) |
 |---|---|---|
-| `qwerty12` (weak) | ~41 bit | ~17 years |
-| 4 random words | ~52 bit | ~35 000 years |
+| `qwerty12` (weak) | ~41 bit | years |
+| 4 random words | ~52 bit | thousands of years |
 | 6 Diceware words | ~77 bit | ~10¹² years |
 
 For comparison, the same passwords with PBKDF2-SHA256 (600k iterations) would fall in days to months.
 
 ### Wrong password detection
 
-GCM authentication tag ensures that any wrong password or file corruption is detected immediately — decryption returns `None` instead of garbage data.
+KDBX authentication (HMAC-SHA256) ensures that any wrong password or file corruption is detected immediately — the vault reports `Wrong password or corrupted vault`.

@@ -126,9 +126,9 @@ def test_sync_run_first_time() -> None:
 
     mock_vault = MagicMock()
     mock_db = MagicMock()
-    mock_db.ver = 1
+    mock_db.ver = 4
     mock_db.entries = [MagicMock()]
-    mock_db.serialize.return_value = b'{"ver": 1, "entries": []}'
+    mock_db.trashed = []
     mock_vault.read_db.return_value = mock_db
 
     mock_state = MagicMock()
@@ -142,6 +142,7 @@ def test_sync_run_first_time() -> None:
         patch("apass.sync.operations.get_provider", return_value=mock_provider),
         patch("apass.sync.operations.load_sync_state", return_value=mock_state),
         patch("apass.sync.operations.save_sync_state") as mock_save_state,
+        patch("apass.sync.operations.Vault.write_db_to_bytes", return_value=b"kdbx_bytes"),
         patch("apass.sync.sync_cli.Vault", return_value=mock_vault),
     ):
         result = runner.invoke(app, ["sync", "run"], input="master123\n")
@@ -165,9 +166,9 @@ def test_sync_run_no_local_vault() -> None:
     mock_vault.read_db.side_effect = VaultNotInitializedError()
 
     mock_db = MagicMock()
-    mock_db.ver = 1
-    mock_db.entries = [MagicMock()]
-    mock_db.serialize.return_value = b'{"ver": 1, "entries": []}'
+    mock_db.ver = 4
+    mock_db.entries = []
+    mock_db.trashed = []
 
     mock_merge_result = MagicMock()
     mock_merge_result.added = []
@@ -190,6 +191,7 @@ def test_sync_run_no_local_vault() -> None:
         patch("apass.sync.operations.merge_dbs", return_value=mock_merge_result),
         patch("apass.sync.operations.load_sync_state", return_value=mock_state),
         patch("apass.sync.operations.save_sync_state") as mock_save_state,
+        patch("apass.sync.operations.Vault.write_db_to_bytes", return_value=b"kdbx_bytes"),
         patch("apass.sync.sync_cli.Vault", return_value=mock_vault),
     ):
         result = runner.invoke(app, ["sync", "run"], input="master123\n")
@@ -235,14 +237,15 @@ def test_sync_run_both_exist_merges_and_uploads() -> None:
 
     mock_vault = MagicMock()
     local_db = MagicMock()
-    local_db.ver = 1
-    local_db.entries = [MagicMock()]
-    local_db.serialize.return_value = b'{"ver": 1, "entries": []}'
+    local_db.ver = 4
+    local_db.entries = []
+    local_db.trashed = []
     mock_vault.read_db.return_value = local_db
 
     remote_db = MagicMock()
-    remote_db.ver = 1
-    remote_db.entries = [MagicMock()]
+    remote_db.ver = 4
+    remote_db.entries = []
+    remote_db.trashed = []
 
     mock_merge_result = MagicMock()
     mock_merge_result.added = []
@@ -265,6 +268,7 @@ def test_sync_run_both_exist_merges_and_uploads() -> None:
         patch("apass.sync.operations.merge_dbs", return_value=mock_merge_result),
         patch("apass.sync.operations.load_sync_state", return_value=mock_state),
         patch("apass.sync.operations.save_sync_state") as mock_save_state,
+        patch("apass.sync.operations.Vault.write_db_to_bytes", return_value=b"kdbx_bytes"),
         patch("apass.sync.sync_cli.Vault", return_value=mock_vault),
     ):
         result = runner.invoke(app, ["sync", "run"], input="master123\n")

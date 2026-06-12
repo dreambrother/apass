@@ -1,13 +1,17 @@
 import time
 from dataclasses import dataclass
 
-from apass.crypto import DecryptionError, VaultStructureError, decrypt, encrypt
 from apass.sync.backend import OAuthProvider, SyncBackend
 from apass.sync.merge import MergeResult, merge_dbs
 from apass.sync.oauth import GoogleOAuthProvider
 from apass.sync.state import BackendType, load_sync_state, save_sync_state
 from apass.sync.yandex_oauth import YandexOAuthProvider
-from apass.vault import PasswordDB, Vault, VaultNotInitializedError
+from apass.vault import (
+    PasswordDB,
+    Vault,
+    VaultNotInitializedError,
+    WrongPasswordError,
+)
 
 
 class RemoteVaultCorruptedError(Exception):
@@ -121,18 +125,13 @@ def _get_authenticated_client() -> SyncBackend:
 
 def _decrypt_remote_vault(remote_bytes: bytes, master_password: str) -> PasswordDB:
     try:
-        remote_plaintext = decrypt(remote_bytes, master_password)
-    except VaultStructureError:
-        raise RemoteVaultCorruptedError("Remote vault is corrupted")
-    except DecryptionError:
-        raise RemoteVaultCorruptedError("Wrong password or remote vault is corrupted")
-
-    return PasswordDB.deserialize(remote_plaintext)
+        return Vault.read_db_from_bytes(remote_bytes, master_password)
+    except WrongPasswordError as e:
+        raise RemoteVaultCorruptedError("Wrong password or remote vault is corrupted") from e
 
 
 def _encrypt_vault(db: PasswordDB, master_password: str) -> bytes:
-    plaintext = db.serialize()
-    return encrypt(plaintext, master_password)
+    return Vault.write_db_to_bytes(db, master_password)
 
 
 @dataclass

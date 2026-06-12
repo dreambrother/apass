@@ -1,27 +1,16 @@
-import json
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
-from apass.crypto import encrypt
 from apass.vault import (
     CorruptedVaultError,
     EntryAlreadyExistsError,
     EntryNotFoundError,
-    UnsupportedDBVersionError,
     Vault,
     VaultNotInitializedError,
     WrongPasswordError,
 )
-
-
-@pytest.fixture(autouse=True)
-def fast_argon2(monkeypatch: pytest.MonkeyPatch) -> None:
-    import apass.crypto as c
-
-    monkeypatch.setattr(c, "DEFAULT_ARGON2_MEMORY", 8)
-    monkeypatch.setattr(c, "DEFAULT_ARGON2_ITERATIONS", 1)
-    monkeypatch.setattr(c, "DEFAULT_ARGON2_LANES", 1)
 
 
 def test_init_db_creates_new_vault(tmp_path: Path) -> None:
@@ -36,21 +25,20 @@ def test_init_db_creates_new_vault(tmp_path: Path) -> None:
 def test_save_adds_entry(initialized_vault: Vault, master_password: str) -> None:
     initialized_vault.save("example", "password123", master_password)
 
-    # Verify by reading back
     vault2 = Vault(initialized_vault._vault_file)
-    db = vault2._read_db(master_password)
+    db = vault2.read_db(master_password)
     assert len(db.entries) == 1
     assert db.entries[0].name == "example"
     assert db.entries[0].login is None
     assert db.entries[0].password == "password123"
+    assert isinstance(db.entries[0].uuid, type(uuid4()))
 
 
 def test_save_adds_entry_with_login(initialized_vault: Vault, master_password: str) -> None:
     initialized_vault.save("example", "password123", master_password, "example_user")
 
-    # Verify by reading back
     vault2 = Vault(initialized_vault._vault_file)
-    db = vault2._read_db(master_password)
+    db = vault2.read_db(master_password)
     assert len(db.entries) == 1
     assert db.entries[0].name == "example"
     assert db.entries[0].login == "example_user"
@@ -62,9 +50,8 @@ def test_save_adds_multiple_entries(initialized_vault: Vault, master_password: s
     initialized_vault.save("example2", "password2", master_password)
     initialized_vault.save("example3", "password3", master_password)
 
-    # Verify by reading back
     vault2 = Vault(initialized_vault._vault_file)
-    db = vault2._read_db(master_password)
+    db = vault2.read_db(master_password)
     assert [e.name for e in db.entries] == ["example1", "example2", "example3"]
 
 
@@ -79,9 +66,8 @@ def test_save_forced(initialized_vault: Vault, master_password: str) -> None:
     initialized_vault.save("example", "password123", master_password)
     initialized_vault.save("example", "password456", master_password, "example_login", force=True)
 
-    # Verify by reading back
     vault = Vault(initialized_vault._vault_file)
-    db = vault._read_db(master_password)
+    db = vault.read_db(master_password)
     assert len(db.entries) == 1
     assert db.entries[0].name == "example"
     assert db.entries[0].login == "example_login"
@@ -93,12 +79,12 @@ def test_read_db_raises_when_not_initialized(tmp_path: Path) -> None:
     vault = Vault(vault_file)
 
     with pytest.raises(VaultNotInitializedError):
-        vault._read_db("master123")
+        vault.read_db("master123")
 
 
 def test_read_db_raises_on_wrong_password(initialized_vault: Vault) -> None:
     with pytest.raises(WrongPasswordError):
-        initialized_vault._read_db("wrongpassword")
+        initialized_vault.read_db("wrongpassword")
 
 
 def test_read_db_raises_on_corrupted_file(tmp_path: Path) -> None:
@@ -107,21 +93,7 @@ def test_read_db_raises_on_corrupted_file(tmp_path: Path) -> None:
     vault = Vault(vault_file)
 
     with pytest.raises(CorruptedVaultError):
-        vault._read_db("master123")
-
-
-def test_read_db_raises_on_unsupported_version(tmp_path: Path) -> None:
-    vault_file = tmp_path / "test.vault"
-    # Create a vault with unsupported version
-    data = {"ver": 999, "entries": []}
-    plaintext = json.dumps(data).encode("utf-8")
-    payload = encrypt(plaintext, "master123")
-    vault_file.write_bytes(payload)
-
-    vault = Vault(vault_file)
-    with pytest.raises(UnsupportedDBVersionError) as exc_info:
-        vault._read_db("master123")
-    assert exc_info.value.found_version == 999
+        vault.read_db("master123")
 
 
 def test_search_multiple_entries(initialized_vault: Vault, master_password: str) -> None:
@@ -148,38 +120,40 @@ def test_search_no_entries(initialized_vault: Vault, master_password: str) -> No
     assert len(entries) == 0
 
 
-def test_remove(initialized_vault: Vault, master_password: str) -> None:
+def test_search_excludes_trashed(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.save("example", "passwd1", master_password)
+    initialized_vault.save("exampletwo", "passwd2", master_password)
+    initialized_vault.remove("exampletwo", master_password)
+
+    entries = initialized_vault.search("example", master_password)
+
+    assert [e.name for e in entries] == ["example"]
+
+
+def test_remove_moves_to_trash(initialized_vault: Vault, master_password: str) -> None:
     initialized_vault.save("utility1", "passwd1", master_password)
     initialized_vault.save("utility2", "passwd2", master_password)
     initialized_vault.save("utility3", "passwd3", master_password)
 
     initialized_vault.remove("utility2", master_password)
 
-    # Verify by reading back
-    vault = Vault(initialized_vault._vault_file)
-    db = vault._read_db(master_password)
-    assert ["utility1", "utility3"] == [e.name for e in db.entries]
-    assert len(db.tombstones) == 1
-    assert db.tombstones[0].name == "utility2"
-    assert db.tombstones[0].modified > 0
+    db = Vault(initialized_vault._vault_file).read_db(master_password)
+    assert [e.name for e in db.entries] == ["utility1", "utility3"]
+    assert [e.name for e in db.trashed] == ["utility2"]
 
 
 def test_remove_multiple(initialized_vault: Vault, master_password: str) -> None:
     initialized_vault.save("utility1", "passwd1", master_password)
     initialized_vault.save("utility2", "passwd2", master_password)
     initialized_vault.save("utility3", "passwd3", master_password)
-    initialized_vault.save("utility4", "passwd3", master_password)
+    initialized_vault.save("utility4", "passwd4", master_password)
 
     initialized_vault.remove("utility2", master_password)
     initialized_vault.remove("utility4", master_password)
 
-    # Verify by reading back
-    vault = Vault(initialized_vault._vault_file)
-    db = vault._read_db(master_password)
-    assert ["utility1", "utility3"] == [e.name for e in db.entries]
-    assert ["utility2", "utility4"] == [t.name for t in db.tombstones]
-    assert db.tombstones[0].name == "utility2"
-    assert db.tombstones[0].modified > 0
+    db = Vault(initialized_vault._vault_file).read_db(master_password)
+    assert [e.name for e in db.entries] == ["utility1", "utility3"]
+    assert [e.name for e in db.trashed] == ["utility2", "utility4"]
 
 
 def test_remove_not_found(initialized_vault: Vault, master_password: str) -> None:
@@ -188,3 +162,43 @@ def test_remove_not_found(initialized_vault: Vault, master_password: str) -> Non
 
     with pytest.raises(EntryNotFoundError):
         initialized_vault.remove("utility2", master_password)
+
+
+def test_restore(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.save("utility1", "passwd1", master_password)
+    initialized_vault.save("utility2", "passwd2", master_password)
+    initialized_vault.remove("utility2", master_password)
+
+    initialized_vault.restore("utility2", master_password)
+
+    db = Vault(initialized_vault._vault_file).read_db(master_password)
+    assert [e.name for e in db.entries] == ["utility1", "utility2"]
+    assert db.trashed == []
+
+
+def test_restore_not_found(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.save("utility1", "passwd1", master_password)
+    initialized_vault.remove("utility1", master_password)
+
+    with pytest.raises(EntryNotFoundError):
+        initialized_vault.restore("utility2", master_password)
+
+
+def test_store_db_replaces_alive_and_trashed(initialized_vault: Vault, master_password: str) -> None:
+    from apass.vault import PasswordDB, PasswordEntry
+
+    initialized_vault.save("a", "p1", master_password)
+    initialized_vault.save("b", "p2", master_password)
+    initialized_vault.remove("b", master_password)
+
+    old_db = initialized_vault.read_db(master_password)
+    new_db = PasswordDB(
+        ver=4,
+        entries=[PasswordEntry(uuid=old_db.entries[0].uuid, name="c", login=None, password="p3", modified=2000)],
+        trashed=[PasswordEntry(uuid=old_db.trashed[0].uuid, name="d", login=None, password="p4", modified=2000)],
+    )
+    initialized_vault.store_db(new_db, master_password)
+
+    db = Vault(initialized_vault._vault_file).read_db(master_password)
+    assert [e.name for e in db.entries] == ["c"]
+    assert [e.name for e in db.trashed] == ["d"]

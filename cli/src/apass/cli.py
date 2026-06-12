@@ -6,7 +6,14 @@ import typer
 from apass import clipboard, generator
 from apass.config import ENV_DB_PATH, get_db_path
 from apass.sync.sync_cli import sync_app
-from apass.vault import EntryAlreadyExistsError, PasswordEntry, VaultNotInitializedError, WrongPasswordError, Vault
+from apass.vault import (
+    EntryAlreadyExistsError,
+    EntryNotFoundError,
+    PasswordEntry,
+    Vault,
+    VaultNotInitializedError,
+    WrongPasswordError,
+)
 
 app = typer.Typer()
 app.add_typer(sync_app, name="sync")
@@ -127,9 +134,8 @@ def save(
 def remove(
     name: t.Annotated[str, typer.Argument(help="Service/utility name")],
     master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, hidden=True)],
-    yes: t.Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation prompt")] = False,
 ) -> None:
-    """Remove a password by name"""
+    """Move a password to the Recycle Bin (recoverable with 'apass restore')"""
     vault = _get_vault()
     try:
         entries = vault.search(name, master_password)
@@ -146,14 +152,38 @@ def remove(
     else:
         entry = _ask_user_choice(name, entries)
 
-    if not yes:
-        typer.confirm(
-            f"This will PERMANENTLY remove the {entry.name} password from vault. Continue?",
-            abort=True,
-        )
     vault.remove(entry.name, master_password)
 
-    typer.echo(f"Password for {entry.name} is removed")
+    typer.echo(f"Password for {entry.name} moved to Recycle Bin")
+
+
+@app.command()
+def restore(
+    name: t.Annotated[str, typer.Argument(help="Service/utility name")],
+    master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, hidden=True)],
+) -> None:
+    """Restore a password from the Recycle Bin"""
+    vault = _get_vault()
+    try:
+        matches = vault.list_trashed(name, master_password)
+    except VaultNotInitializedError:
+        _fail("Vault is not initialized. Run 'apass init' first.")
+    except WrongPasswordError:
+        _fail("Wrong password")
+
+    if not matches:
+        _fail(f"No trashed entries found for '{name}'")
+
+    if len(matches) == 1:
+        entry = matches[0]
+    else:
+        entry = _ask_user_choice(name, matches)
+
+    try:
+        vault.restore(entry.name, master_password)
+    except EntryNotFoundError:
+        _fail(f"Entry '{entry.name}' is no longer in the Recycle Bin")
+    typer.echo(f"Password for {entry.name} restored from Recycle Bin")
 
 
 def _get_vault() -> Vault:

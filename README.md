@@ -138,8 +138,7 @@ poetry run apass sync login
 | `apass sync logout` | Remove authorization |
 | `apass sync status` | Show sync status (backend, email, file ID, last sync time) |
 | `apass sync diff` | Preview what would be synced (dry run) |
-| `apass sync push` | Merge local + remote, upload to cloud |
-| `apass sync pull` | Merge remote + local, download from cloud |
+| `apass sync run` | Bidirectional sync: merge local + remote, write to both |
 | `apass sync delete-remote [--yes]` | Permanently delete the remote vault file from cloud storage |
 | `apass sync backend gdrive\|yadisk` | Switch cloud storage backend |
 
@@ -152,7 +151,7 @@ poetry run apass sync login
 
 - Entries are merged by `name` (case-sensitive)
 - Conflicts resolved by last-write-wins using `modified` timestamp
-- On equal timestamps: `push` prefers local, `pull` prefers remote
+- On equal timestamps: local wins
 - No interactive conflict resolution in v1
 
 ### Environment variables

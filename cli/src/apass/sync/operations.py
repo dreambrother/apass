@@ -22,30 +22,44 @@ class UnsupportedBackendError(Exception):
     pass
 
 
+class NothingToSyncError(Exception):
+    pass
+
+
 _PROVIDERS: dict[BackendType, OAuthProvider] = {
     "gdrive": GoogleOAuthProvider(),
     "yadisk": YandexOAuthProvider(),
 }
 
 
-def perform_push(vault: Vault, master_password: str) -> PushResult:
+def perform_sync(
+    vault: Vault, master_password: str, dry_run: bool = False
+) -> SyncResult:
     client = _get_authenticated_client()
     state = load_sync_state()
 
-    local_db = vault.read_db(master_password)
+    try:
+        local_db = vault.read_db(master_password)
+    except VaultNotInitializedError:
+        local_db = PasswordDB()
 
-    remote_file_id = state.remote_file_id
-    if not remote_file_id:
-        remote_file_id = client.find_vault_file()
+    remote_file_id = state.remote_file_id or client.find_vault_file()
 
-    merge_result = None
     if remote_file_id:
         remote_bytes = client.download_vault_file(remote_file_id)
         remote_db = _decrypt_remote_vault(remote_bytes, master_password)
-        merge_result = merge_dbs(local_db, remote_db, prefer="local")
+        merge_result = merge_dbs(local_db, remote_db)
         local_db = merge_result.merged_db
-        vault.store_db(local_db, master_password)
+    else:
+        merge_result = MergeResult(merged_db=local_db)
 
+    if not local_db.entries and not remote_file_id:
+        raise NothingToSyncError("Nothing to sync. Run 'apass init' first.")
+
+    if dry_run:
+        return SyncResult(merge_result=merge_result, remote_file_id=remote_file_id or "")
+
+    vault.store_db(local_db, master_password)
     payload = _encrypt_vault(local_db, master_password)
     new_file_id = client.upload_vault_file(payload, remote_file_id)
 
@@ -53,39 +67,14 @@ def perform_push(vault: Vault, master_password: str) -> PushResult:
     state.last_sync_at = int(time.time())
     save_sync_state(state)
 
-    return PushResult(merge_result=merge_result, remote_file_id=new_file_id)
-
-
-def perform_pull(vault: Vault, master_password: str) -> MergeResult:
-    client = _get_authenticated_client()
-
-    remote_file_id = client.find_vault_file()
-    if not remote_file_id:
-        raise NoRemoteVaultError("No remote vault found")
-
-    remote_bytes = client.download_vault_file(remote_file_id)
-
-    try:
-        local_db = vault.read_db(master_password)
-    except VaultNotInitializedError:
-        local_db = PasswordDB()
-
-    remote_db = _decrypt_remote_vault(remote_bytes, master_password)
-    result = merge_dbs(local_db, remote_db, prefer="remote")
-    vault.store_db(result.merged_db, master_password)
-
-    state = load_sync_state()
-    state.remote_file_id = remote_file_id
-    state.last_sync_at = int(time.time())
-    save_sync_state(state)
-
-    return result
+    return SyncResult(merge_result=merge_result, remote_file_id=new_file_id)
 
 
 def compute_diff(vault: Vault, master_password: str) -> MergeResult | None:
     client = _get_authenticated_client()
+    state = load_sync_state()
 
-    remote_file_id = client.find_vault_file()
+    remote_file_id = state.remote_file_id or client.find_vault_file()
     if not remote_file_id:
         return None
 
@@ -97,7 +86,7 @@ def compute_diff(vault: Vault, master_password: str) -> MergeResult | None:
         local_db = PasswordDB()
 
     remote_db = _decrypt_remote_vault(remote_bytes, master_password)
-    return merge_dbs(local_db, remote_db, prefer="local")
+    return merge_dbs(local_db, remote_db)
 
 
 def perform_delete_remote(master_password: str) -> None:
@@ -147,8 +136,6 @@ def _encrypt_vault(db: PasswordDB, master_password: str) -> bytes:
 
 
 @dataclass
-class PushResult:
-    merge_result: MergeResult | None
+class SyncResult:
+    merge_result: MergeResult
     remote_file_id: str
-
-

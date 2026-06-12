@@ -75,24 +75,7 @@ def test_merge_same_entry_remote_newer() -> None:
     assert result.updated[0].name == "example"
 
 
-def test_merge_same_entry_same_time_prefer_local() -> None:
-    local = PasswordDB(entries=[
-        PasswordEntry("example", None, "local_pass", 1000),
-    ])
-    remote = PasswordDB(entries=[
-        PasswordEntry("example", None, "remote_pass", 1000),
-    ])
-
-    result = merge_dbs(local, remote, prefer="local")
-
-    assert len(result.merged_db.entries) == 1
-    entry = result.merged_db.entries[0]
-    assert entry.password == "local_pass"
-    assert len(result.kept_local_with_conflict) == 1
-    assert result.kept_local_with_conflict[0].name == "example"
-
-
-def test_merge_same_entry_same_time_prefer_remote() -> None:
+def test_merge_same_entry_same_time_local_wins() -> None:
     local = PasswordDB(entries=[
         PasswordEntry("example", "user", "local_pass", 1000),
     ])
@@ -100,11 +83,13 @@ def test_merge_same_entry_same_time_prefer_remote() -> None:
         PasswordEntry("example", "user", "remote_pass", 1000),
     ])
 
-    result = merge_dbs(local, remote, prefer="remote")
+    result = merge_dbs(local, remote)
 
     assert len(result.merged_db.entries) == 1
     entry = result.merged_db.entries[0]
-    assert entry.password == "remote_pass"
+    assert entry.password == "local_pass"
+    assert len(result.kept_local_with_conflict) == 1
+    assert result.kept_local_with_conflict[0].name == "example"
 
 
 def test_merge_same_entry_identical() -> None:

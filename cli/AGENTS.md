@@ -60,9 +60,9 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
     in `yadisk_token.json` next to vault file
   - `yadisk.py` — `YandexDiskClient` class implementing `SyncBackend` for Yandex Disk
     (vault stored at `/apass/vault.db`)
-  - `operations.py` — High-level sync operations (`perform_push`, `perform_pull`, `perform_delete_remote`, `compute_diff`);
+  - `operations.py` — High-level sync operations (`perform_sync` — bidirectional merge + store + upload; `compute_diff` — dry-run preview; `perform_delete_remote`);
   provider registry (`_PROVIDERS`), `get_provider()` function
-  - `sync_cli.py` — CLI commands for sync (`setup`, `login`, `logout`, `status`, `diff`, `push`, `pull`, `delete-remote`, `backend`)
+  - `sync_cli.py` — CLI commands for sync (`setup`, `login`, `logout`, `status`, `diff`, `run`, `delete-remote`, `backend`)
 - `experiments.py` — Scratch/prototyping file (not part of the app)
 
 > **Keep this module map up to date!** When you add, rename, or significantly

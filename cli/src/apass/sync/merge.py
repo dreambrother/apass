@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import Literal
 
 from apass.vault import PasswordDB, PasswordEntry
 
@@ -14,11 +13,7 @@ class MergeResult:
     unchanged_count: int = 0
 
 
-def merge_dbs(
-    local: PasswordDB,
-    remote: PasswordDB,
-    prefer: Literal["local", "remote"] = "local",
-) -> MergeResult:
+def merge_dbs(local: PasswordDB, remote: PasswordDB) -> MergeResult:
     local_by_name = {e.name: e for e in local.entries}
     remote_by_name = {e.name: e for e in remote.entries}
 
@@ -35,7 +30,7 @@ def merge_dbs(
             kept_locally_only.append(local_entry)
         else:
             remote_entry = remote_by_name[name]
-            winner = _resolve_conflict(local_entry, remote_entry, prefer)
+            winner = _resolve_conflict(local_entry, remote_entry)
             merged_entries.append(winner)
             if winner is local_entry:
                 if (
@@ -65,15 +60,11 @@ def merge_dbs(
     )
 
 
-def _resolve_conflict(
-    local: PasswordEntry,
-    remote: PasswordEntry,
-    prefer: Literal["local", "remote"],
-) -> PasswordEntry:
+def _resolve_conflict(local: PasswordEntry, remote: PasswordEntry) -> PasswordEntry:
     if local.modified < remote.modified:
         return remote
     if local.modified > remote.modified:
         return local
     if local.password == remote.password:
         return local
-    return local if prefer == "local" else remote
+    return local

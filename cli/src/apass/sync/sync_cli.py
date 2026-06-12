@@ -98,43 +98,26 @@ def sync_diff(
         result = operations.compute_diff(vault, master_password)
 
     if result is None:
-        typer.echo("No remote vault found. Run 'apass sync push' to create one.")
+        typer.echo("No remote vault found. Run 'apass sync run' to create one.")
         return
 
-    _print_merge_result(result, header="Sync preview (what would happen on push):")
+    _print_merge_result(result, header="Sync preview (what would happen on run):")
 
 
-@sync_app.command("push")
-def sync_push(
+@sync_app.command("run")
+def sync_run(
     master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, hidden=True)],
 ) -> None:
-    """Sync local vault to cloud storage (merge + upload)"""
+    """Bidirectional sync: merge local and remote, write to both"""
     vault = Vault(get_db_path())
     provider = operations.get_provider()
 
     with _sync_error_handler():
-        result = operations.perform_push(vault, master_password)
+        result = operations.perform_sync(vault, master_password)
 
-    if result.merge_result:
-        _print_merge_result(result.merge_result, header="Merged local and remote vaults.")
-
+    _print_merge_result(result.merge_result, header="Merged local and remote vaults.")
     typer.echo(f"\nSynced with {provider.get_display_name()}.")
     typer.echo(f"Remote file ID: {result.remote_file_id}")
-
-
-@sync_app.command("pull")
-def sync_pull(
-    master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, hidden=True)],
-) -> None:
-    """Sync cloud storage vault to local (merge + download)"""
-    vault = Vault(get_db_path())
-    provider = operations.get_provider()
-
-    with _sync_error_handler():
-        result = operations.perform_pull(vault, master_password)
-
-    _print_merge_result(result, header="Merged remote and local vaults.")
-    typer.echo(f"\nSynced with {provider.get_display_name()}.")
 
 
 @sync_app.command("backend")
@@ -195,6 +178,8 @@ def _sync_error_handler() -> t.Generator[None]:
     except operations.NoRemoteVaultError as e:
         _fail(str(e))
     except operations.UnsupportedBackendError as e:
+        _fail(str(e))
+    except operations.NothingToSyncError as e:
         _fail(str(e))
     except CloudApiError as e:
         _fail(str(e))

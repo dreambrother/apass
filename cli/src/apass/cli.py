@@ -123,6 +123,39 @@ def save(
     typer.echo(f"Password for {name} set successfully")
 
 
+@app.command()
+def remove(
+    name: t.Annotated[str, typer.Argument(help="Service/utility name")],
+    master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, hidden=True)],
+    yes: t.Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation prompt")] = False,
+) -> None:
+    """Remove a password by name"""
+    vault = _get_vault()
+    try:
+        entries = vault.search(name, master_password)
+    except VaultNotInitializedError:
+        _fail("Vault is not initialized. Run 'apass init' first.")
+    except WrongPasswordError:
+        _fail("Wrong password")
+
+    if not entries:
+        _fail(f"No entries found for '{name}'")
+
+    if len(entries) == 1:
+        entry = entries[0]
+    else:
+        entry = _ask_user_choice(name, entries)
+
+    if not yes:
+        typer.confirm(
+            f"This will PERMANENTLY remove the {entry.name} password from vault. Continue?",
+            abort=True,
+        )
+    vault.remove(entry.name, master_password)
+
+    typer.echo(f"Password for {entry.name} is removed")
+
+
 def _get_vault() -> Vault:
     return Vault(get_db_path())
 

@@ -16,8 +16,12 @@ class VaultNotInitializedError(Exception):
 
 class EntryAlreadyExistsError(Exception):
     def __init__(self, entry_name: str) -> None:
-        self.entry_name = entry_name
         super().__init__(f"Entry for {entry_name!r} already exists")
+
+
+class EntryNotFoundError(Exception):
+    def __init__(self, entry_name: str) -> None:
+        super().__init__(f"Entry for {entry_name!r} is not found")
 
 
 class CorruptedVaultError(Exception):
@@ -86,6 +90,16 @@ class Vault:
     def store_db(self, db: PasswordDB, master_password: str) -> None:
         self._store_db(db, master_password)
 
+    def remove(self, name: str, master_password: str) -> None:
+        db = self._read_db(master_password)
+        found = next((e for e in db.entries if e.name == name), None)
+        if found is None:
+            raise EntryNotFoundError(name)
+
+        db.entries.remove(found)
+        db.tombstones.append(Tombstone(name, int(datetime.now(timezone.utc).timestamp())))
+        self._store_db(db, master_password)
+
     def _read_db(self, master_password: str) -> PasswordDB:
         if not self._vault_file.exists():
             raise VaultNotInitializedError()
@@ -110,6 +124,7 @@ class Vault:
 class PasswordDB:
     ver: int = CURRENT_DB_VERSION
     entries: list[PasswordEntry] = field(default_factory=list)
+    tombstones: list[Tombstone] = field(default_factory=list)
 
     def serialize(self) -> bytes:
         return json.dumps(asdict(self), ensure_ascii=False).encode("utf-8")
@@ -129,7 +144,10 @@ class PasswordDB:
             )
             for e in parsed["entries"]
         ]
-        return cls(ver=found_ver, entries=entries)
+        tombstones = [
+            Tombstone(t["name"], t["modified"]) for t in parsed["tombstones"]
+        ]
+        return cls(ver=found_ver, entries=entries, tombstones=tombstones)
 
 
 @dataclass
@@ -138,3 +156,9 @@ class PasswordEntry:
     login: str | None
     password: str
     modified: int  # Unix timestamp (UTC)
+
+
+@dataclass
+class Tombstone:
+    name: str
+    modified: int  # Unix timestamp (UTC); when the delete happened

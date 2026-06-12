@@ -7,6 +7,7 @@ from apass.crypto import encrypt
 from apass.vault import (
     CorruptedVaultError,
     EntryAlreadyExistsError,
+    EntryNotFoundError,
     UnsupportedDBVersionError,
     Vault,
     VaultNotInitializedError,
@@ -145,3 +146,45 @@ def test_search_no_entries(initialized_vault: Vault, master_password: str) -> No
     entries = initialized_vault.search("example", master_password)
 
     assert len(entries) == 0
+
+
+def test_remove(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.save("utility1", "passwd1", master_password)
+    initialized_vault.save("utility2", "passwd2", master_password)
+    initialized_vault.save("utility3", "passwd3", master_password)
+
+    initialized_vault.remove("utility2", master_password)
+
+    # Verify by reading back
+    vault = Vault(initialized_vault._vault_file)
+    db = vault._read_db(master_password)
+    assert ["utility1", "utility3"] == [e.name for e in db.entries]
+    assert len(db.tombstones) == 1
+    assert db.tombstones[0].name == "utility2"
+    assert db.tombstones[0].modified > 0
+
+
+def test_remove_multiple(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.save("utility1", "passwd1", master_password)
+    initialized_vault.save("utility2", "passwd2", master_password)
+    initialized_vault.save("utility3", "passwd3", master_password)
+    initialized_vault.save("utility4", "passwd3", master_password)
+
+    initialized_vault.remove("utility2", master_password)
+    initialized_vault.remove("utility4", master_password)
+
+    # Verify by reading back
+    vault = Vault(initialized_vault._vault_file)
+    db = vault._read_db(master_password)
+    assert ["utility1", "utility3"] == [e.name for e in db.entries]
+    assert ["utility2", "utility4"] == [t.name for t in db.tombstones]
+    assert db.tombstones[0].name == "utility2"
+    assert db.tombstones[0].modified > 0
+
+
+def test_remove_not_found(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.save("utility1", "passwd1", master_password)
+    initialized_vault.save("utility3", "passwd2", master_password)
+
+    with pytest.raises(EntryNotFoundError):
+        initialized_vault.remove("utility2", master_password)

@@ -308,3 +308,71 @@ def test_save_fails_on_wrong_password() -> None:
 
     assert result.exit_code == 1
     assert "Wrong password" in result.output
+
+
+def test_remove_single_match() -> None:
+    mock_entry = MagicMock()
+    mock_entry.name = "example"
+    mock_entry.password = "s3cret"
+
+    mock_vault = MagicMock()
+    mock_vault.search.return_value = [mock_entry]
+
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(app, ["remove", "example"], input="master123\ny\n")
+
+    assert result.exit_code == 0
+    mock_vault.remove.assert_called_once_with("example", "master123")
+    assert "Continue?" in result.output
+    assert "Password for example is removed" in result.output
+
+
+def test_remove_multiple_matches_prompts_for_choice() -> None:
+    mock_entry1 = MagicMock()
+    mock_entry1.name = "example.com"
+    mock_entry1.password = "pass1"
+    mock_entry2 = MagicMock()
+    mock_entry2.name = "example.org"
+    mock_entry2.password = "pass2"
+    mock_entry3 = MagicMock()
+    mock_entry3.name = "example.net"
+    mock_entry3.password = "pass3"
+
+    mock_vault = MagicMock()
+    mock_vault.search.return_value = [mock_entry1, mock_entry2, mock_entry3]
+
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(app, ["remove", "example", "-y"], input="master123\n2\n")
+
+    assert result.exit_code == 0
+    mock_vault.remove.assert_called_once_with("example.org", "master123")
+    assert "Found 3 entries matching 'example'" in result.output
+    assert "1: example.com" in result.output
+    assert "2: example.org" in result.output
+    assert "3: example.net" in result.output
+    assert "Password for example.org is removed" in result.output
+
+
+def test_remove_multiple_matches_default_choice() -> None:
+    """When user presses Enter without typing a number, default=1 is used."""
+    mock_entry1 = MagicMock()
+    mock_entry1.name = "foo.com"
+    mock_entry1.password = "pass1"
+    mock_entry2 = MagicMock()
+    mock_entry2.name = "foo.net"
+    mock_entry2.password = "pass2"
+
+    mock_vault = MagicMock()
+    mock_vault.search.return_value = [mock_entry1, mock_entry2]
+
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(app, ["remove", "foo", "-y"], input="master123\n\n")
+
+    assert result.exit_code == 0
+    assert "Password for foo.com is removed" in result.output

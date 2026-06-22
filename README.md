@@ -15,11 +15,12 @@ A dead-simple cross-platform **A**nother **Pass**word manager.
 - [x] Get
 - [x] Save
 - [x] Remove (moves entry to Recycle Bin)
-- [ ] Remove from bin
 - [x] Restore (recover entry from Recycle Bin)
-- [ ] Rotate
 - [x] Cloud sync (Google Drive, Yandex Disk)
 - [x] Delete remote vault file
+- [ ] List Recycle Bin
+- [ ] Rotate
+- [ ] Remove from bin
 
 ## CLI
 

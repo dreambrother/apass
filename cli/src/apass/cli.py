@@ -107,6 +107,8 @@ def get(
 
     clipboard.copy(entry.password)
     typer.echo(f"Password for {entry.name} copied to clipboard")
+    if entry.login is not None:
+        typer.echo(f"Login: {entry.login}")
 
 
 @app.command()

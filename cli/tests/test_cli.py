@@ -379,10 +379,9 @@ def test_remove_multiple_matches_default_choice() -> None:
 
 
 def test_restore_single_match() -> None:
-    from uuid import uuid4
     from apass.vault import PasswordEntry
 
-    mock_entry = PasswordEntry(uuid=uuid4(), name="example", login="u", password="s3cret", modified=1)
+    mock_entry = PasswordEntry(name="example", login="u", password="s3cret")
 
     mock_vault = MagicMock()
     mock_vault.list_trashed.return_value = [mock_entry]

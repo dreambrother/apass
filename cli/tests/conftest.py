@@ -1,8 +1,7 @@
 from pathlib import Path
 import random
 import string
-import tempfile
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 import pykeepass
 import pykeepass.pykeepass as _pk
@@ -13,7 +12,7 @@ from apass.vault import Vault
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _fast_argon2_blank():
+def _fast_argon2_blank(tmp_path_factory: pytest.TempPathFactory):
     """Replace pykeepass's blank database with a low-KDF copy.
 
     pykeepass's bundled ``blank_database.kdbx`` uses Argon2 with
@@ -23,7 +22,7 @@ def _fast_argon2_blank():
     while keeping the full KDBX4 + Argon2id code path exercised.
     Production code is untouched.
     """
-    tmp = Path(tempfile.mkdtemp(prefix="apass-tests-"))
+    tmp = tmp_path_factory.mktemp("apass-tests")
     new_blank = tmp / "blank.kdbx"
 
     kp = cast(Any, pykeepass.create_database(str(new_blank), password=_pk.BLANK_DATABASE_PASSWORD))
@@ -69,3 +68,13 @@ def initialized_vault(vault_file: Path, master_password: str) -> Vault:
 @pytest.fixture(autouse=True)
 def isolated_db_path(monkeypatch: pytest.MonkeyPatch, vault_file: Path) -> None:
     monkeypatch.setenv("APASS_DB_PATH", str(vault_file))
+
+
+@pytest.fixture
+def kp_factory(tmp_path: Path) -> Callable[[], pykeepass.PyKeePass]:
+    index = 0
+    def _make() -> pykeepass.PyKeePass:
+        nonlocal index
+        index += 1
+        return pykeepass.create_database(f"{tmp_path}/kp-{index}.kdbx")
+    return _make

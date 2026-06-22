@@ -32,14 +32,23 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
 
 - `cli.py` — Typer app, entry point, basic CLI commands (`init`, `create`, `get`, `save`, `remove`, `restore`);
   `create` and `save` accept optional `--login` / `-l`; `remove` moves to Recycle Bin
-- `vault.py` — `Vault` class backed by **KDBX 4** (pykeepass). Methods: `init_db`, `save`,
-  `search`, `read_db`, `store_db`, `remove` (→ Recycle Bin), `restore` (← from Recycle Bin).
-  Static helpers `read_db_from_bytes` / `write_db_to_bytes` for sync.
-  Data models: `PasswordDB` (has `entries` + `trashed`), `PasswordEntry`
-  (has `uuid: UUID`, `name`, `login: str | None`, `password`, `modified: int`).
-  Custom exceptions: `VaultNotInitializedError`, `EntryAlreadyExistsError`,
-  `EntryNotFoundError`, `CorruptedVaultError`, `WrongPasswordError`.
-  Atomic file writes are handled by pykeepass internally (writes to `.tmp` then `rename`).
+- `vault/` — KDBX 4 (pykeepass) vault package:
+  - `__init__.py` — `Vault` class backed by pykeepass. Methods: `init_db`, `save`
+    (with `force` overwrite), `search` (case-insensitive substring on title),
+    `remove` (→ Recycle Bin), `restore` (← from Recycle Bin), `list_trashed`,
+    `to_bytes` (for sync upload), `merge` (sync merge with remote bytes).
+    Data model: `PasswordEntry` (`name`, `password`, `login: str | None`).
+    Atomic file writes are handled by pykeepass internally (writes to `.tmp` then `rename`).
+  - `errors.py` — Custom exceptions: `VaultNotInitializedError`,
+    `EntryAlreadyExistsError`, `EntryNotFoundError`, `CorruptedVaultError`,
+    `WrongPasswordError`.
+  - `keepass.py` — pykeepass helpers: `find_alive` / `find_all_alive`,
+    `find_trashed` / `find_all_trashed`, `get_all_entries`,
+    `validate_entries` (rejects empty titles/passwords at load time).
+  - `merge.py` — `MergeResult` dataclass and `merge_dbs()` function.
+    Merge key: entry `title`. LWW by entry `mtime`. Trashed entries (KDBX
+    Recycle Bin) are merged with the same LWW rule — the side with the
+    newer modification time wins, regardless of alive vs. trashed state.
 - `generator.py` — Password generation with configurable size and minimum
   digit/special character guarantees (`create_password`)
 - `config.py` — Database path resolution: `APASS_DB_PATH` env var or `~/.apass/vault.kdbx`
@@ -50,12 +59,6 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
   - `backend.py` — `SyncBackend` Protocol, `OAuthProvider` Protocol, `CloudApiError`, `NotLoggedInError` exceptions
   - `state.py` — `SyncState` dataclass with `backend` field (`gdrive` or `yadisk`),
     `load_sync_state()`, `save_sync_state()`; stores state in `sync.json` next to vault file
-  - `merge.py` — `merge_dbs()` function, `MergeResult` dataclass.
-  Merge key: entry `uuid` (standard KDBX UUID). LWW by `modified` timestamp;
-  `login` is included in equality checks for unchanged detection.
-  Trashed entries (KDBX Recycle Bin) are tracked separately and merged with the
-  same LWW rule — the side with the newer modification time wins, regardless of
-  alive vs. trashed state.
   - `oauth.py` — Google OAuth 2.0 flow and `GoogleOAuthProvider` class;
     stores config in `gdrive_oauth.json` and tokens in `gdrive_token.json` next to vault file
   - `gdrive.py` — `GoogleDriveClient` class implementing `SyncBackend` for Google Drive
@@ -66,7 +69,9 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
   - `yadisk.py` — `YandexDiskClient` class implementing `SyncBackend` for Yandex Disk
     (vault stored at `/apass/vault.db`)
   - `operations.py` — High-level sync operations (`perform_sync` — bidirectional merge + store + upload; `compute_diff` — dry-run preview; `perform_delete_remote`);
-  provider registry (`_PROVIDERS`), `get_provider()` function
+  provider registry (`_PROVIDERS`), `get_provider()` function. Local `RemoteVaultCorruptedError`,
+  `NoRemoteVaultError`, `UnsupportedBackendError` exceptions. `VaultNotInitializedError`
+  from the vault package propagates as-is.
   - `sync_cli.py` — CLI commands for sync (`setup`, `login`, `logout`, `status`, `diff`, `run`, `delete-remote`, `backend`)
 - `experiments.py` — Scratch/prototyping file (not part of the app)
 

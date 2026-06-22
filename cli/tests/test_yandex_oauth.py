@@ -1,12 +1,9 @@
-import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from apass.sync.yandex_oauth import (
     YandexOAuthConfig,
-    YandexOAuthError,
     YandexToken,
     delete_yandex_token,
     get_yandex_user_email,
@@ -34,12 +31,12 @@ def test_save_and_load_oauth_config(temp_config_dir) -> None:
     assert loaded.client_secret == "test_client_secret"
 
 
-def test_load_oauth_config_not_exists(temp_config_dir) -> None:
+def test_load_oauth_config_not_exists() -> None:
     result = load_yandex_oauth_config()
     assert result is None
 
 
-def test_save_and_load_token(temp_config_dir) -> None:
+def test_save_and_load_token() -> None:
     token = YandexToken(
         access_token="test_access_token",
         refresh_token="test_refresh_token",
@@ -56,12 +53,12 @@ def test_save_and_load_token(temp_config_dir) -> None:
     assert loaded.expires_in == 3600
 
 
-def test_load_token_not_exists(temp_config_dir) -> None:
+def test_load_token_not_exists() -> None:
     result = load_yandex_token()
     assert result is None
 
 
-def test_delete_token(temp_config_dir) -> None:
+def test_delete_token() -> None:
     token = YandexToken(access_token="test_access_token")
     save_yandex_token(token)
 
@@ -71,7 +68,7 @@ def test_delete_token(temp_config_dir) -> None:
     assert result is None
 
 
-def test_delete_token_not_exists(temp_config_dir) -> None:
+def test_delete_token_not_exists() -> None:
     delete_yandex_token()
 
 

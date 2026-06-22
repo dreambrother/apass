@@ -7,9 +7,9 @@ import typer
 from apass.config import get_db_path
 from apass.sync import operations
 from apass.sync.backend import CloudApiError, NotLoggedInError
-from apass.sync.merge import MergeResult
 from apass.sync.state import BackendType, SyncState, load_sync_state, save_sync_state
 from apass.vault import Vault, VaultNotInitializedError, WrongPasswordError
+from apass.vault.merge import MergeResult
 
 sync_app = typer.Typer(help="Sync vault with cloud storage")
 
@@ -116,7 +116,7 @@ def sync_run(
         result = operations.perform_sync(vault, master_password)
 
     _print_merge_result(result.merge_result, header="Merged local and remote vaults.")
-    typer.echo(f"\nSynced with {provider.get_display_name()}.")
+    typer.echo(f"Synced with {provider.get_display_name()}.")
     typer.echo(f"Remote file ID: {result.remote_file_id}")
 
 
@@ -179,21 +179,25 @@ def _sync_error_handler() -> t.Generator[None]:
         _fail(str(e))
     except operations.UnsupportedBackendError as e:
         _fail(str(e))
-    except operations.NothingToSyncError as e:
-        _fail(str(e))
     except CloudApiError as e:
         _fail(str(e))
 
 
-def _print_merge_result(result: MergeResult, header: str | None = None) -> None:
+def _print_merge_result(result: MergeResult | None, header: str | None = None) -> None:
     if header:
         typer.echo(header)
+    if result is None:
+        typer.echo("No changes to sync")
+        return
     if result.added:
-        typer.echo(f"  Added from remote: {', '.join(e.name for e in result.added)}")
+        typer.echo(f"  Added from remote: {', '.join(result.added)}")
     if result.updated:
-        typer.echo(f"  Updated: {', '.join(e.name for e in result.updated)}")
-    if result.kept_locally_only:
-        typer.echo(f"  Kept locally only: {len(result.kept_locally_only)} entries")
-    if result.kept_local_with_conflict:
-        typer.echo(f"  Kept local (conflict resolved): {len(result.kept_local_with_conflict)} entries")
-    typer.echo(f"  Unchanged: {result.unchanged_count} entries")
+        typer.echo(f"  Updated: {', '.join(result.updated)}")
+    if result.trashed:
+        typer.echo(f"  Trashed: {', '.join(result.trashed)}")
+    if result.added_to_trash:
+        typer.echo(f"  Added to trash: {', '.join(result.added_to_trash)}")
+    if result.updated_in_trash:
+        typer.echo(f"  Updated in trash: {', '.join(result.updated_in_trash)}")
+    if result.restored_from_trash:
+        typer.echo(f"  Restored from trash: {', '.join(result.restored_from_trash)}")

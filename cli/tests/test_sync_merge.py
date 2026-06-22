@@ -1,198 +1,180 @@
-from uuid import uuid4
+from datetime import datetime, timedelta
+from typing import Callable, cast
 
-from apass.sync.merge import merge_dbs
-from apass.vault import PasswordDB, PasswordEntry
+from apass.vault import keepass
+from pykeepass import Entry, PyKeePass
 
-
-def _entry(name: str, modified: int, login: str | None = None, password: str = "p") -> PasswordEntry:
-    return PasswordEntry(uuid=uuid4(), name=name, login=login, password=password, modified=modified)
-
-
-def test_merge_empty_dbs() -> None:
-    local = PasswordDB(entries=[])
-    remote = PasswordDB(entries=[])
-
-    result = merge_dbs(local, remote)
-
-    assert len(result.merged_db.entries) == 0
-    assert len(result.merged_db.trashed) == 0
-    assert len(result.added) == 0
-    assert len(result.updated) == 0
-    assert len(result.kept_locally_only) == 0
-    assert result.unchanged_count == 0
+from apass.vault.merge import MergeResult, merge_dbs
 
 
-def test_merge_disjoint_entries() -> None:
-    local = PasswordDB(entries=[_entry("local1", 1000)])
-    remote = PasswordDB(entries=[_entry("remote1", 1000, login="user2", password="pass2")])
+def test_merge_empty_dbs(kp_factory: Callable[[], PyKeePass]) -> None:
+    local = kp_factory()
+    remote = kp_factory()
 
     result = merge_dbs(local, remote)
 
-    assert len(result.merged_db.entries) == 2
-    names = {e.name for e in result.merged_db.entries}
-    assert names == {"local1", "remote1"}
-    assert len(result.added) == 1
-    assert result.added[0].name == "remote1"
-    assert len(result.kept_locally_only) == 1
-    assert result.kept_locally_only[0].name == "local1"
+    assert result == MergeResult()
+    assert local.entries == []
 
 
-def test_merge_same_entry_local_newer() -> None:
-    uid = uuid4()
-    local = PasswordDB(entries=[PasswordEntry(uuid=uid, name="example", login="local_user", password="local_pass", modified=2000)])
-    remote = PasswordDB(entries=[PasswordEntry(uuid=uid, name="example", login="remote_user", password="remote_pass", modified=1000)])
+def test_merge_identical(kp_factory: Callable[[], PyKeePass]) -> None:
+    local = kp_factory()
+    local_entry = local.add_entry(local.root_group, "local1", "", "")
+    remote = kp_factory()
+    remote_entry = remote.add_entry(remote.root_group, "local1", "", "")
+    remote_entry.mtime = local_entry.mtime
 
     result = merge_dbs(local, remote)
 
-    assert len(result.merged_db.entries) == 1
-    entry = result.merged_db.entries[0]
-    assert entry.name == "example"
-    assert entry.login == "local_user"
-    assert entry.password == "local_pass"
-    assert entry.modified == 2000
-    assert len(result.updated) == 0
-    assert len(result.kept_local_with_conflict) == 1
-    assert result.kept_local_with_conflict[0].name == "example"
+    assert result == MergeResult()
+    assert _has_entry(keepass.find_all_alive(local), "local1")
 
 
-def test_merge_same_entry_remote_newer() -> None:
-    uid = uuid4()
-    local = PasswordDB(entries=[PasswordEntry(uuid=uid, name="example", login="local_user", password="local_pass", modified=1000)])
-    remote = PasswordDB(entries=[PasswordEntry(uuid=uid, name="example", login="remote_user", password="remote_pass", modified=2000)])
+def test_merge_disjoint_entries(kp_factory: Callable[[], PyKeePass]) -> None:
+    local = kp_factory()
+    local.add_entry(local.root_group, "local1", "user1", "pass1")
+    local.add_entry(local.root_group, "local2", "user2", "pass2")
+    remote = kp_factory()
+    remote.add_entry(remote.root_group, "remote1", "user3", "pass3")
+    remote.add_entry(remote.root_group, "remote2", "user4", "pass4")
 
     result = merge_dbs(local, remote)
 
-    assert len(result.merged_db.entries) == 1
-    entry = result.merged_db.entries[0]
-    assert entry.name == "example"
-    assert entry.login == "remote_user"
-    assert entry.password == "remote_pass"
-    assert entry.modified == 2000
-    assert len(result.updated) == 1
-    assert result.updated[0].name == "example"
-
-
-def test_merge_same_entry_same_time_local_wins() -> None:
-    uid = uuid4()
-    local = PasswordDB(entries=[PasswordEntry(uuid=uid, name="example", login="user", password="local_pass", modified=1000)])
-    remote = PasswordDB(entries=[PasswordEntry(uuid=uid, name="example", login="user", password="remote_pass", modified=1000)])
-
-    result = merge_dbs(local, remote)
-
-    assert len(result.merged_db.entries) == 1
-    entry = result.merged_db.entries[0]
-    assert entry.password == "local_pass"
-    assert len(result.kept_local_with_conflict) == 1
-    assert result.kept_local_with_conflict[0].name == "example"
-
-
-def test_merge_same_entry_identical() -> None:
-    e = _entry("example", 1000, "user", "same_pass")
-    local = PasswordDB(entries=[e])
-    remote = PasswordDB(entries=[e])
-
-    result = merge_dbs(local, remote)
-
-    assert len(result.merged_db.entries) == 1
-    assert result.unchanged_count == 1
-    assert len(result.updated) == 0
-
-
-def test_merge_case_sensitive_names() -> None:
-    local = PasswordDB(entries=[_entry("Example", 1000, password="pass1")])
-    remote = PasswordDB(entries=[_entry("example", 2000, password="pass2")])
-
-    result = merge_dbs(local, remote)
-
-    assert len(result.merged_db.entries) == 2
-    names = {e.name for e in result.merged_db.entries}
-    assert names == {"Example", "example"}
-
-
-def test_merge_complex_scenario() -> None:
-    keep_local_uid = uuid4()
-    update_uid = uuid4()
-    local_only_uid = uuid4()
-    unchanged_uid = uuid4()
-    remote_only_uid = uuid4()
-
-    local = PasswordDB(entries=[
-        PasswordEntry(uuid=keep_local_uid, name="keep_local", login=None, password="pass1", modified=2000),
-        PasswordEntry(uuid=update_uid, name="update_from_remote", login=None, password="old", modified=1000),
-        PasswordEntry(uuid=local_only_uid, name="local_only", login=None, password="pass3", modified=1000),
-        PasswordEntry(uuid=unchanged_uid, name="unchanged", login="unch", password="same", modified=1000),
-    ])
-    remote = PasswordDB(entries=[
-        PasswordEntry(uuid=keep_local_uid, name="keep_local", login=None, password="remote", modified=1000),
-        PasswordEntry(uuid=update_uid, name="update_from_remote", login=None, password="new", modified=2000),
-        PasswordEntry(uuid=remote_only_uid, name="remote_only", login=None, password="pass4", modified=1000),
-        PasswordEntry(uuid=unchanged_uid, name="unchanged", login="unch", password="same", modified=1000),
+    assert result == MergeResult(added=["remote1", "remote2"])
+    alive_entries = keepass.find_all_alive(local)
+    assert len(alive_entries) == 4
+    assert all([
+        _has_entry(alive_entries, title, user_name, password)
+        for title, user_name, password in
+        [
+            ("local1", "user1", "pass1"),
+            ("local2", "user2", "pass2"),
+            ("remote1", "user3", "pass3"),
+            ("remote2", "user4", "pass4"),
+        ]
     ])
 
-    result = merge_dbs(local, remote)
 
-    assert len(result.merged_db.entries) == 5
-    by_name = {e.name: e for e in result.merged_db.entries}
+def test_merge_trashed_and_restored(kp_factory: Callable[[], PyKeePass]) -> None:
+    local = kp_factory()
+    local.add_entry(local.root_group, "serv1", "user1", "pass1")
+    to_trash_local = local.add_entry(local.root_group, "serv2", "user2", "pass2")
+    local.trash_entry(to_trash_local)
 
-    assert by_name["keep_local"].password == "pass1"
-    assert by_name["update_from_remote"].password == "new"
-    assert by_name["local_only"].password == "pass3"
-    assert by_name["remote_only"].password == "pass4"
-    assert by_name["unchanged"].password == "same"
-
-    assert len(result.added) == 1
-    assert result.added[0].name == "remote_only"
-    assert len(result.updated) == 1
-    assert result.updated[0].name == "update_from_remote"
-    assert len(result.kept_locally_only) == 1
-    assert result.kept_locally_only[0].name == "local_only"
-    assert len(result.kept_local_with_conflict) == 1
-    assert result.kept_local_with_conflict[0].name == "keep_local"
-    assert result.unchanged_count == 1
-
-
-def test_merge_alive_vs_trash_remote_newer() -> None:
-    uid = uuid4()
-    local = PasswordDB(entries=[PasswordEntry(uuid=uid, name="github", login=None, password="alive_pass", modified=1000)])
-    remote = PasswordDB(trashed=[PasswordEntry(uuid=uid, name="github", login=None, password="p", modified=2000)])
+    remote = kp_factory()
+    to_trash_remote = remote.add_entry(remote.root_group, "serv1", "user1", "pass1")
+    remote.trash_entry(to_trash_remote)
+    _bump_mtime(to_trash_remote)
+    to_restore_remote = remote.add_entry(remote.root_group, "serv2", "user2", "pass2")
+    _bump_mtime(to_restore_remote)
 
     result = merge_dbs(local, remote)
 
-    assert len(result.merged_db.entries) == 0
-    assert len(result.merged_db.trashed) == 1
-    assert result.merged_db.trashed[0].modified == 2000
+    assert result == MergeResult(trashed=["serv1"], restored_from_trash=["serv2"])
+
+    alive_entries = keepass.find_all_alive(local)
+    assert len(alive_entries) == 1
+    assert _has_entry(alive_entries, "serv2")
+
+    trashed_entries = keepass.find_all_trashed(local)
+    assert len(trashed_entries) == 1
+    assert _has_entry(trashed_entries, "serv1")
 
 
-def test_merge_alive_vs_trash_local_newer() -> None:
-    uid = uuid4()
-    local = PasswordDB(entries=[PasswordEntry(uuid=uid, name="github", login=None, password="alive_pass", modified=2000)])
-    remote = PasswordDB(trashed=[PasswordEntry(uuid=uid, name="github", login=None, password="p", modified=1000)])
+def test_merge_update(kp_factory: Callable[[], PyKeePass]) -> None:
+    local = kp_factory()
+    local.add_entry(local.root_group, "serv1", "user1", "pass1")
+    not_changed_local = local.add_entry(local.root_group, "serv2", "user2", "pass2")
 
-    result = merge_dbs(local, remote)
-
-    assert len(result.merged_db.entries) == 1
-    assert result.merged_db.entries[0].modified == 2000
-    assert len(result.merged_db.trashed) == 0
-
-
-def test_merge_both_trashed_latest_wins() -> None:
-    uid = uuid4()
-    local = PasswordDB(trashed=[PasswordEntry(uuid=uid, name="github", login=None, password="p", modified=1000)])
-    remote = PasswordDB(trashed=[PasswordEntry(uuid=uid, name="github", login=None, password="p", modified=2000)])
-
-    result = merge_dbs(local, remote)
-
-    assert len(result.merged_db.entries) == 0
-    assert len(result.merged_db.trashed) == 1
-    assert result.merged_db.trashed[0].modified == 2000
-
-
-def test_merge_trash_entry_persists_unchanged() -> None:
-    e = _entry("github", 1000)
-    local = PasswordDB(trashed=[e])
-    remote = PasswordDB(trashed=[e])
+    remote = kp_factory()
+    changed_remote = remote.add_entry(remote.root_group, "serv1", "user1", "pass111")
+    _bump_mtime(changed_remote)
+    not_changed_remote = remote.add_entry(remote.root_group, "serv2", "user2", "pass2")
+    not_changed_remote.mtime = not_changed_local.mtime
 
     result = merge_dbs(local, remote)
 
-    assert len(result.merged_db.trashed) == 1
-    assert result.unchanged_count == 1
+    assert result == MergeResult(updated=["serv1"])
+    entries = keepass.find_all_alive(local)
+    assert len(entries) == 2
+    assert all([
+        _has_entry(entries, title, user_name, password)
+        for title, user_name, password in
+        [
+            ("serv1", "user1", "pass111"),
+            ("serv2", "user2", "pass2"),
+        ]
+    ])
+
+
+def test_merge_dry_run_does_not_mutate_local(kp_factory: Callable[[], PyKeePass]) -> None:
+    local = kp_factory()
+    local.add_entry(local.root_group, "serv1", "user1", "pass1")
+    not_changed_local = local.add_entry(local.root_group, "serv2", "user2", "pass2")
+    local_alive_titles = [e.title for e in keepass.find_all_alive(local)]
+    local_trashed_titles = [e.title for e in keepass.find_all_trashed(local)]
+    local_alive_count = len(local_alive_titles)
+
+    remote = kp_factory()
+    changed_remote = remote.add_entry(remote.root_group, "serv1", "user1", "pass111")
+    _bump_mtime(changed_remote)
+    not_changed_remote = remote.add_entry(remote.root_group, "serv2", "user2", "pass2")
+    not_changed_remote.mtime = not_changed_local.mtime
+    remote.add_entry(remote.root_group, "serv3", "user3", "pass3")
+    to_trash_remote = remote.add_entry(remote.root_group, "serv4", "user4", "pass4")
+    remote.trash_entry(to_trash_remote)
+
+    result = merge_dbs(local, remote, dry_run=True)
+
+    assert result == MergeResult(updated=["serv1"], added=["serv3"], added_to_trash=["serv4"])
+
+    # local не должен измениться: ни состав, ни количество, ни состояние (alive/trashed).
+    assert [e.title for e in keepass.find_all_alive(local)] == local_alive_titles
+    assert [e.title for e in keepass.find_all_trashed(local)] == local_trashed_titles
+    alive = keepass.find_all_alive(local)
+    assert len(alive) == local_alive_count
+    assert _has_entry(alive, "serv1", "user1", "pass1")
+    assert _has_entry(alive, "serv2", "user2", "pass2")
+
+
+def test_merge_update_trashed(kp_factory: Callable[[], PyKeePass]) -> None:
+    local = kp_factory()
+    not_changed_local = local.add_entry(local.root_group, "serv1", "user1", "pass1")
+    local.trash_entry(not_changed_local)
+    local.add_entry(local.recyclebin_group, "serv2", "user2", "pass2")
+
+    remote = kp_factory()
+    not_changed_remote = remote.add_entry(remote.root_group, "serv1", "user1", "pass1")
+    remote.trash_entry(not_changed_remote)
+    not_changed_remote.mtime = not_changed_local.mtime
+    changed_remote = remote.add_entry(remote.recyclebin_group, "serv2", "user22", "pass222")
+    _bump_mtime(changed_remote)
+    remote.add_entry(remote.recyclebin_group, "serv3", "user3", "pass3")
+
+    result = merge_dbs(local, remote)
+
+    assert result == MergeResult(updated_in_trash=["serv2"], added_to_trash=["serv3"])
+    entries = keepass.find_all_trashed(local)
+    assert len(entries) == 3
+    assert all([
+        _has_entry(entries, title, user_name, password)
+        for title, user_name, password in
+        [
+            ("serv1", "user1", "pass1"),
+            ("serv2", "user22", "pass222"),
+            ("serv3", "user3", "pass3"),
+        ]
+    ])
+
+
+def _has_entry(entries: list[Entry], title: str, user_name: str | None = None, password: str | None = None) -> bool:
+    return any(
+        e.title == title
+        and (user_name is None or e.username == user_name)
+        and (password is None or e.password == password)
+        for e in entries
+    )
+
+
+def _bump_mtime(entry: Entry) -> None:
+    entry.mtime = cast(datetime, entry.mtime) + timedelta(seconds=1)

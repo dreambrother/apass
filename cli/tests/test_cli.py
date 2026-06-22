@@ -2,8 +2,8 @@ from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
-from apass.vault import VaultNotInitializedError, WrongPasswordError
 from apass.cli import app
+from apass.vault.errors import VaultNotInitializedError, WrongPasswordError
 
 runner = CliRunner()
 

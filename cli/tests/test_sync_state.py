@@ -58,10 +58,10 @@ def test_save_sync_state_atomic_write(tmp_path: Path) -> None:
 
 def test_sync_state_is_configured() -> None:
     state1 = SyncState()
-    assert not state1.is_configured()
+    assert not state1.is_configured
 
     state2 = SyncState(remote_file_id="abc")
-    assert state2.is_configured()
+    assert state2.is_configured
 
 
 def test_load_sync_state_handles_partial_data(tmp_path: Path) -> None:

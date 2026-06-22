@@ -1,7 +1,40 @@
+import io
 from typing import Iterable, cast
 
-from apass.vault.errors import CorruptedVaultError
+from apass.vault.errors import CorruptedVaultError, WrongPasswordError
 from pykeepass import Entry, Group, PyKeePass
+from pykeepass.exceptions import (
+    CredentialsError,
+    HeaderChecksumError,
+    PayloadChecksumError,
+)
+
+
+def from_bytes(db_bytes: bytes, master_password: str) -> PyKeePass:
+    try:
+        kp = PyKeePass(io.BytesIO(db_bytes), password=master_password)
+    except CredentialsError as e:
+        raise WrongPasswordError() from e
+    except (HeaderChecksumError, PayloadChecksumError) as e:
+        raise CorruptedVaultError() from e
+    except (OSError, ValueError) as e:
+        raise CorruptedVaultError() from e
+    validate_entries(kp)
+    return kp
+
+
+def is_valid(db_bytes: bytes, master_password: str) -> bool:
+    try:
+        _ = from_bytes(db_bytes, master_password)
+    except (WrongPasswordError, CorruptedVaultError):
+        return False
+    return True
+
+
+def matches(entry: Entry, query: str) -> bool:
+    if entry.title is None:
+        return False
+    return query.lower() in entry.title.lower()
 
 
 def find_alive(kp: PyKeePass, name: str) -> Entry | None:
@@ -43,3 +76,16 @@ def validate_entries(kp: PyKeePass) -> None:
             raise CorruptedVaultError("Empty entry title is not supported yet")
         if not e.password:
             raise CorruptedVaultError("Empty entry password is not supported yet")
+
+
+__all__ = [
+    "from_bytes",
+    "is_valid",
+    "matches",
+    "find_alive",
+    "find_all_alive",
+    "find_trashed",
+    "find_all_trashed",
+    "get_all_entries",
+    "validate_entries",
+]

@@ -7,10 +7,12 @@ from apass import clipboard, generator
 from apass.config import ENV_DB_PATH, get_db_path
 from apass.sync.sync_cli import sync_app
 from apass.vault import (
-    EntryAlreadyExistsError,
-    EntryNotFoundError,
     PasswordEntry,
     Vault,
+)
+from apass.vault.errors import (
+    EntryAlreadyExistsError,
+    EntryNotFoundError,
     VaultNotInitializedError,
     WrongPasswordError,
 )

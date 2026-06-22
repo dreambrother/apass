@@ -309,7 +309,7 @@ def test_sync_delete_remote_success() -> None:
         patch("apass.sync.operations.get_provider", return_value=mock_provider),
         patch("apass.sync.operations.load_sync_state", return_value=mock_state),
         patch("apass.sync.operations.save_sync_state") as mock_save_state,
-        patch("apass.sync.operations.Vault.is_valid", return_value=True),
+        patch("apass.sync.operations.keepass.is_valid", return_value=True),
     ):
         result = runner.invoke(app, ["sync", "delete-remote", "--yes"], input="master123\n")
 
@@ -337,7 +337,7 @@ def test_sync_delete_remote_with_confirm_yes() -> None:
         patch("apass.sync.operations.get_provider", return_value=mock_provider),
         patch("apass.sync.operations.load_sync_state", return_value=mock_state),
         patch("apass.sync.operations.save_sync_state"),
-        patch("apass.sync.operations.Vault.is_valid", return_value=True),
+        patch("apass.sync.operations.keepass.is_valid", return_value=True),
     ):
         result = runner.invoke(app, ["sync", "delete-remote"], input="master123\ny\n")
 
@@ -391,7 +391,7 @@ def test_sync_delete_remote_wrong_password() -> None:
     with (
         patch("apass.sync.operations.get_provider", return_value=mock_provider),
         patch("apass.sync.operations.load_sync_state", return_value=mock_state),
-        patch("apass.sync.operations.Vault.is_valid", return_value=False),
+        patch("apass.sync.operations.keepass.is_valid", return_value=False),
     ):
         result = runner.invoke(app, ["sync", "delete-remote", "--yes"], input="wrongpass\n")
 
@@ -417,7 +417,7 @@ def test_sync_delete_remote_cloud_error() -> None:
     with (
         patch("apass.sync.operations.get_provider", return_value=mock_provider),
         patch("apass.sync.operations.load_sync_state", return_value=mock_state),
-        patch("apass.sync.operations.Vault.is_valid", return_value=True),
+        patch("apass.sync.operations.keepass.is_valid", return_value=True),
     ):
         result = runner.invoke(app, ["sync", "delete-remote", "--yes"], input="master123\n")
 

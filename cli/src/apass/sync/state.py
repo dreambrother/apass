@@ -16,6 +16,7 @@ class SyncState:
     last_sync_at: int | None = None
     backend: BackendType = "gdrive"
 
+    @property
     def is_configured(self) -> bool:
         return self.remote_file_id is not None
 

@@ -8,7 +8,8 @@ from apass.config import get_db_path
 from apass.sync import operations
 from apass.sync.backend import CloudApiError, NotLoggedInError
 from apass.sync.state import BackendType, SyncState, load_sync_state, save_sync_state
-from apass.vault import Vault, VaultNotInitializedError, WrongPasswordError
+from apass.vault import Vault
+from apass.vault.errors import VaultNotInitializedError, WrongPasswordError
 from apass.vault.merge import MergeResult
 
 sync_app = typer.Typer(help="Sync vault with cloud storage")
@@ -25,9 +26,9 @@ def sync_setup(
         _fail("Client ID and Client Secret are required")
 
     try:
-        provider = operations._PROVIDERS[backend]
-    except KeyError:
-        _fail(f"Unsupported backend: {backend}")
+        provider = operations.get_provider_for(backend)
+    except operations.UnsupportedBackendError as e:
+        _fail(str(e))
 
     provider.save_config(client_id, client_secret)
 
@@ -126,9 +127,9 @@ def sync_backend(
 ) -> None:
     """Switch cloud storage backend"""
     try:
-        provider = operations._PROVIDERS[backend]
-    except KeyError:
-        _fail(f"Unsupported backend: {backend}. Use 'gdrive' or 'yadisk'.")
+        provider = operations.get_provider_for(backend)
+    except operations.UnsupportedBackendError as e:
+        _fail(str(e))
 
     state = load_sync_state()
     state.backend = backend

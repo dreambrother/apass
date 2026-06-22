@@ -5,10 +5,9 @@ from apass.sync.backend import OAuthProvider, SyncBackend
 from apass.sync.oauth import GoogleOAuthProvider
 from apass.sync.state import BackendType, load_sync_state, save_sync_state
 from apass.sync.yandex_oauth import YandexOAuthProvider
-from apass.vault import (
-    Vault,
-    WrongPasswordError,
-)
+from apass.vault import Vault
+from apass.vault import keepass
+from apass.vault.errors import WrongPasswordError
 from apass.vault.merge import MergeResult
 
 
@@ -73,7 +72,7 @@ def perform_delete_remote(master_password: str) -> None:
         raise NoRemoteVaultError("No remote vault found")
 
     remote_bytes = client.download_vault_file(remote_file_id)
-    if not Vault.is_valid(remote_bytes, master_password):
+    if not keepass.is_valid(remote_bytes, master_password):
         raise RemoteVaultCorruptedError("Wrong password or remote vault is corrupted")
 
     client.delete_vault_file(remote_file_id)
@@ -85,10 +84,14 @@ def perform_delete_remote(master_password: str) -> None:
 
 def get_provider() -> OAuthProvider:
     state = load_sync_state()
-    provider = _PROVIDERS.get(state.backend)
-    if not provider:
-        raise UnsupportedBackendError(f"Unsupported backend: {state.backend}")
-    return provider
+    return get_provider_for(state.backend)
+
+
+def get_provider_for(backend: BackendType) -> OAuthProvider:
+    try:
+        return _PROVIDERS[backend]
+    except KeyError as e:
+        raise UnsupportedBackendError(f"Unsupported backend: {backend}") from e
 
 
 def _get_authenticated_client() -> SyncBackend:

@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+from apass.vault import PasswordEntry
 from typer.testing import CliRunner
 
 from apass.cli import app
@@ -56,7 +57,7 @@ def test_create_prompts_for_password_and_stores() -> None:
         result = runner.invoke(app, ["create", "example"], input="master123\n")
 
     assert result.exit_code == 0
-    mock_vault.save.assert_called_once_with("example", "abc123", "master123", None, force=False)
+    mock_vault.save.assert_called_once_with("example", "", "abc123", "master123", force=False)
     mock_copy.assert_called_once_with("abc123")
     assert "Password for example copied to clipboard" in result.output
 
@@ -82,7 +83,7 @@ def test_create_all_params_passed() -> None:
         )
 
     assert result.exit_code == 0
-    mock_vault.save.assert_called_once_with("example", "abc123", "master123", "example_login", force=False)
+    mock_vault.save.assert_called_once_with("example", "example_login", "abc123", "master123", force=False)
     mock_copy.assert_called_once_with("abc123")
     mock_genetator.assert_called_once_with(size=15, min_digits=5, min_special=2)
     assert "Password for example copied to clipboard" in result.output
@@ -127,12 +128,8 @@ def test_create_fails_on_wrong_password() -> None:
 
 
 def test_get_single_match_copies_to_clipboard() -> None:
-    mock_entry = MagicMock()
-    mock_entry.name = "example"
-    mock_entry.password = "s3cret"
-
     mock_vault = MagicMock()
-    mock_vault.search.return_value = [mock_entry]
+    mock_vault.search.return_value = [PasswordEntry(name="example", login="", password="s3cret")]
 
     with (
         patch("apass.cli._get_vault", return_value=mock_vault),
@@ -147,18 +144,12 @@ def test_get_single_match_copies_to_clipboard() -> None:
 
 
 def test_get_multiple_matches_prompts_for_choice() -> None:
-    mock_entry1 = MagicMock()
-    mock_entry1.name = "example.com"
-    mock_entry1.password = "pass1"
-    mock_entry2 = MagicMock()
-    mock_entry2.name = "example.org"
-    mock_entry2.password = "pass2"
-    mock_entry3 = MagicMock()
-    mock_entry3.name = "example.net"
-    mock_entry3.password = "pass3"
-
     mock_vault = MagicMock()
-    mock_vault.search.return_value = [mock_entry1, mock_entry2, mock_entry3]
+    mock_vault.search.return_value = [
+        PasswordEntry(name="example.com", login="", password="pass1"),
+        PasswordEntry(name="example.org", login="user1", password="pass2"),
+        PasswordEntry(name="example.net", login="user2", password="pass3"),
+    ]
 
     with (
         patch("apass.cli._get_vault", return_value=mock_vault),
@@ -171,22 +162,20 @@ def test_get_multiple_matches_prompts_for_choice() -> None:
     mock_copy.assert_called_once_with("pass2")
     assert "Found 3 entries matching 'example'" in result.output
     assert "1: example.com" in result.output
-    assert "2: example.org" in result.output
-    assert "3: example.net" in result.output
-    assert "Password for example.org copied to clipboard" in result.output
+    assert "2: example.org/user1" in result.output
+    assert "3: example.net/user2" in result.output
+    assert "Password for example.org/user1 copied to clipboard" in result.output
 
 
 def test_get_multiple_matches_default_choice() -> None:
     """When user presses Enter without typing a number, default=1 is used."""
-    mock_entry1 = MagicMock()
-    mock_entry1.name = "foo.com"
-    mock_entry1.password = "pass1"
-    mock_entry2 = MagicMock()
-    mock_entry2.name = "foo.net"
-    mock_entry2.password = "pass2"
+    entries = [
+        PasswordEntry(name="foo.com", password="pass1", login=""),
+        PasswordEntry(name="foo.net", password="pass2", login=""),
+    ]
 
     mock_vault = MagicMock()
-    mock_vault.search.return_value = [mock_entry1, mock_entry2]
+    mock_vault.search.return_value = entries
 
     with (
         patch("apass.cli._get_vault", return_value=mock_vault),
@@ -200,15 +189,13 @@ def test_get_multiple_matches_default_choice() -> None:
 
 
 def test_get_choice_out_of_range_fails() -> None:
-    mock_entry1 = MagicMock()
-    mock_entry1.name = "x.com"
-    mock_entry1.password = "px"
-    mock_entry2 = MagicMock()
-    mock_entry2.name = "x.org"
-    mock_entry2.password = "py"
+    entries = [
+        PasswordEntry(name="x.com", password="px", login=""),
+        PasswordEntry(name="x.org", password="py", login=""),
+    ]
 
     mock_vault = MagicMock()
-    mock_vault.search.return_value = [mock_entry1, mock_entry2]
+    mock_vault.search.return_value = entries
 
     with (
         patch("apass.cli._get_vault", return_value=mock_vault),
@@ -270,7 +257,7 @@ def test_save_prompts_for_passwords_and_stores() -> None:
         result = runner.invoke(app, ["save", "example"], input="master123\nservice123\n")
 
     assert result.exit_code == 0
-    mock_vault.save.assert_called_once_with("example", "service123", "master123", None, False)
+    mock_vault.save.assert_called_once_with("example", "", "service123", "master123", False)
     assert "Password for example set successfully" in result.output
 
 
@@ -282,8 +269,8 @@ def test_save_with_login_prompts_for_passwords_and_stores_force() -> None:
         result = runner.invoke(app, ["save", "example", "-l", "test_login", "--force"], input="master123\nservice123\n")
 
     assert result.exit_code == 0
-    mock_vault.save.assert_called_once_with("example", "service123", "master123", "test_login", True)
-    assert "Password for example set successfully" in result.output
+    mock_vault.save.assert_called_once_with("example", "test_login", "service123", "master123", True)
+    assert "Password for example/test_login set successfully" in result.output
 
 
 def test_save_fails_when_vault_not_initialized() -> None:
@@ -311,12 +298,10 @@ def test_save_fails_on_wrong_password() -> None:
 
 
 def test_remove_single_match() -> None:
-    mock_entry = MagicMock()
-    mock_entry.name = "example"
-    mock_entry.password = "s3cret"
+    entries = [PasswordEntry(name="example", password="s3cret", login="")]
 
     mock_vault = MagicMock()
-    mock_vault.search.return_value = [mock_entry]
+    mock_vault.search.return_value = entries
 
     with (
         patch("apass.cli._get_vault", return_value=mock_vault),
@@ -324,50 +309,44 @@ def test_remove_single_match() -> None:
         result = runner.invoke(app, ["remove", "example"], input="master123\n")
 
     assert result.exit_code == 0
-    mock_vault.remove.assert_called_once_with("example", "master123")
+    mock_vault.remove.assert_called_once_with("example", "", "master123")
     assert "Recycle Bin" in result.output
     assert "Password for example moved to Recycle Bin" in result.output
 
 
 def test_remove_multiple_matches_prompts_for_choice() -> None:
-    mock_entry1 = MagicMock()
-    mock_entry1.name = "example.com"
-    mock_entry1.password = "pass1"
-    mock_entry2 = MagicMock()
-    mock_entry2.name = "example.org"
-    mock_entry2.password = "pass2"
-    mock_entry3 = MagicMock()
-    mock_entry3.name = "example.net"
-    mock_entry3.password = "pass3"
+    entries = [
+        PasswordEntry(name="example.com", password="pass1", login="user1"),
+        PasswordEntry(name="example.org", password="pass2", login=""),
+        PasswordEntry(name="example.org", password="pass3", login="user3"),
+    ]
 
     mock_vault = MagicMock()
-    mock_vault.search.return_value = [mock_entry1, mock_entry2, mock_entry3]
+    mock_vault.search.return_value = entries
 
     with (
         patch("apass.cli._get_vault", return_value=mock_vault),
     ):
-        result = runner.invoke(app, ["remove", "example"], input="master123\n2\n")
+        result = runner.invoke(app, ["remove", "example"], input="master123\n3\n")
 
     assert result.exit_code == 0
-    mock_vault.remove.assert_called_once_with("example.org", "master123")
+    mock_vault.remove.assert_called_once_with("example.org", "user3", "master123")
     assert "Found 3 entries matching 'example'" in result.output
-    assert "1: example.com" in result.output
+    assert "1: example.com/user1" in result.output
     assert "2: example.org" in result.output
-    assert "3: example.net" in result.output
+    assert "3: example.org/user3" in result.output
     assert "Password for example.org moved to Recycle Bin" in result.output
 
 
 def test_remove_multiple_matches_default_choice() -> None:
     """When user presses Enter without typing a number, default=1 is used."""
-    mock_entry1 = MagicMock()
-    mock_entry1.name = "foo.com"
-    mock_entry1.password = "pass1"
-    mock_entry2 = MagicMock()
-    mock_entry2.name = "foo.net"
-    mock_entry2.password = "pass2"
+    entries = [
+        PasswordEntry(name="foo.com", password="pass1", login=""),
+        PasswordEntry(name="foo.net", password="pass2", login=""),
+    ]
 
     mock_vault = MagicMock()
-    mock_vault.search.return_value = [mock_entry1, mock_entry2]
+    mock_vault.search.return_value = entries
 
     with (
         patch("apass.cli._get_vault", return_value=mock_vault),
@@ -393,7 +372,7 @@ def test_restore_single_match() -> None:
 
     assert result.exit_code == 0
     mock_vault.list_trashed.assert_called_once_with("example", "master123")
-    mock_vault.restore.assert_called_once_with("example", "master123")
+    mock_vault.restore.assert_called_once_with("example", "u", "master123")
     assert "Password for example restored from Recycle Bin" in result.output
 
 

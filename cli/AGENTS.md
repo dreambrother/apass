@@ -46,9 +46,11 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
     `find_trashed` / `find_all_trashed`, `get_all_entries`,
     `validate_entries` (rejects empty titles/passwords at load time).
   - `merge.py` — `MergeResult` dataclass and `merge_dbs()` function.
-    Merge key: entry `title`. LWW by entry `mtime`. Trashed entries (KDBX
-    Recycle Bin) are merged with the same LWW rule — the side with the
-    newer modification time wins, regardless of alive vs. trashed state.
+    Merge key: entry `uuid` (KDBX stable UUID, not title). LWW by entry
+    `mtime`. Trashed entries (KDBX Recycle Bin) are merged with the same
+    LWW rule — the side with the newer modification time wins, regardless
+    of alive vs. trashed state. `MergeResult` fields carry entry `title`s
+    (for human-readable output), not UUIDs.
 - `generator.py` — Password generation with configurable size and minimum
   digit/special character guarantees (`create_password`)
 - `config.py` — Database path resolution: `APASS_DB_PATH` env var or `~/.apass/vault.kdbx`

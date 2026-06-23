@@ -21,6 +21,7 @@ A dead-simple cross-platform **A**nother **Pass**word manager.
 - [ ] List Recycle Bin
 - [ ] Rotate
 - [ ] Remove from bin
+- [ ] Rename entry
 
 ## CLI
 

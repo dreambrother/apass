@@ -1,13 +1,27 @@
 import io
 from typing import Iterable, cast
 
-from apass.vault.errors import CorruptedVaultError, WrongPasswordError
 from pykeepass import Entry, Group, PyKeePass
 from pykeepass.exceptions import (
     CredentialsError,
     HeaderChecksumError,
     PayloadChecksumError,
 )
+
+from apass.vault.errors import CorruptedVaultError, WrongPasswordError
+
+
+__all__ = [
+    "from_bytes",
+    "is_valid",
+    "matches",
+    "find_alive",
+    "find_all_alive",
+    "find_trashed",
+    "find_all_trashed",
+    "get_all_entries",
+    "validate_entries",
+]
 
 
 def from_bytes(db_bytes: bytes, master_password: str) -> PyKeePass:
@@ -37,9 +51,9 @@ def matches(entry: Entry, query: str) -> bool:
     return query.lower() in entry.title.lower()
 
 
-def find_alive(kp: PyKeePass, name: str) -> Entry | None:
+def find_alive(kp: PyKeePass, name: str, login: str) -> Entry | None:
     for e in find_all_alive(kp):
-        if e.title == name:
+        if e.title == name and (e.username or "") == login:
             return e
     return None
 
@@ -49,9 +63,9 @@ def find_all_alive(kp: PyKeePass) -> list[Entry]:
     return [e for e in cast(Iterable[Entry], kp.entries) if e not in trashed]
 
 
-def find_trashed(kp: PyKeePass, name: str) -> Entry | None:
+def find_trashed(kp: PyKeePass, name: str, login: str) -> Entry | None:
     for e in find_all_trashed(kp):
-        if e.title == name:
+        if e.title == name and (e.username or "") == login:
             return e
     return None
 
@@ -76,16 +90,3 @@ def validate_entries(kp: PyKeePass) -> None:
             raise CorruptedVaultError("Empty entry title is not supported yet")
         if not e.password:
             raise CorruptedVaultError("Empty entry password is not supported yet")
-
-
-__all__ = [
-    "from_bytes",
-    "is_valid",
-    "matches",
-    "find_alive",
-    "find_all_alive",
-    "find_trashed",
-    "find_all_trashed",
-    "get_all_entries",
-    "validate_entries",
-]

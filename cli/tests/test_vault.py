@@ -24,18 +24,18 @@ def test_init_db_creates_new_vault(tmp_path: Path) -> None:
 
 
 def test_save_adds_entry(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.save("example", "password123", master_password)
+    initialized_vault.save("example", "", "password123", master_password)
 
     vault2 = Vault(initialized_vault.vault_file)
     entries = vault2.search("", master_password)
     assert len(entries) == 1
     assert entries[0].name == "example"
-    assert entries[0].login is None
+    assert entries[0].login == ""
     assert entries[0].password == "password123"
 
 
 def test_save_adds_entry_with_login(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.save("example", "password123", master_password, "example_user")
+    initialized_vault.save("example", "example_user", "password123", master_password)
 
     vault2 = Vault(initialized_vault.vault_file)
     entries = vault2.search("", master_password)
@@ -46,9 +46,9 @@ def test_save_adds_entry_with_login(initialized_vault: Vault, master_password: s
 
 
 def test_save_adds_multiple_entries(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.save("example1", "password1", master_password)
-    initialized_vault.save("example2", "password2", master_password)
-    initialized_vault.save("example3", "password3", master_password)
+    initialized_vault.save("example1", "", "password1", master_password)
+    initialized_vault.save("example2", "", "password2", master_password)
+    initialized_vault.save("example3", "", "password3", master_password)
 
     vault2 = Vault(initialized_vault.vault_file)
     entries = vault2.search("", master_password)
@@ -56,15 +56,15 @@ def test_save_adds_multiple_entries(initialized_vault: Vault, master_password: s
 
 
 def test_save_raises_on_duplicate(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.save("example", "password123", master_password)
+    initialized_vault.save("example", "", "password123", master_password)
 
     with pytest.raises(EntryAlreadyExistsError):
-        initialized_vault.save("example", "password456", master_password)
+        initialized_vault.save("example", "", "password456", master_password)
 
 
 def test_save_forced(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.save("example", "password123", master_password)
-    initialized_vault.save("example", "password456", master_password, "example_login", force=True)
+    initialized_vault.save("example", "example_login", "password123", master_password)
+    initialized_vault.save("example", "example_login", "password456", master_password, force=True)
 
     vault = Vault(initialized_vault.vault_file)
     entries = vault.search("", master_password)
@@ -97,14 +97,14 @@ def test_read_db_raises_on_corrupted_file(tmp_path: Path) -> None:
 
 
 def test_search_multiple_entries(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.save("some pass", "passwd1", master_password)
-    initialized_vault.save("Example1", "passwd2", master_password)
-    initialized_vault.save("example2", "passwd3", master_password)
-    initialized_vault.save("Unknown", "passwd4", master_password)
-    initialized_vault.save("example_3", "passwd5", master_password)
-    initialized_vault.save("Some example", "passwd6", master_password)
-    initialized_vault.save("fooexamplebar", "passwd7", master_password)
-    initialized_vault.save("Another pass", "passwd8", master_password)
+    initialized_vault.save("some pass", "", "passwd1", master_password)
+    initialized_vault.save("Example1", "", "passwd2", master_password)
+    initialized_vault.save("example2", "", "passwd3", master_password)
+    initialized_vault.save("Unknown", "", "passwd4", master_password)
+    initialized_vault.save("example_3", "", "passwd5", master_password)
+    initialized_vault.save("Some example", "", "passwd6", master_password)
+    initialized_vault.save("fooexamplebar", "", "passwd7", master_password)
+    initialized_vault.save("Another pass", "", "passwd8", master_password)
 
     entries = initialized_vault.search("example", master_password)
 
@@ -112,8 +112,8 @@ def test_search_multiple_entries(initialized_vault: Vault, master_password: str)
 
 
 def test_search_no_entries(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.save("some pass 1", "passwd1", master_password)
-    initialized_vault.save("some pass 2", "passwd2", master_password)
+    initialized_vault.save("some pass 1", "", "passwd1", master_password)
+    initialized_vault.save("some pass 2", "", "passwd2", master_password)
 
     entries = initialized_vault.search("example", master_password)
 
@@ -121,9 +121,9 @@ def test_search_no_entries(initialized_vault: Vault, master_password: str) -> No
 
 
 def test_search_excludes_trashed(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.save("example", "passwd1", master_password)
-    initialized_vault.save("exampletwo", "passwd2", master_password)
-    initialized_vault.remove("exampletwo", master_password)
+    initialized_vault.save("example", "", "passwd1", master_password)
+    initialized_vault.save("exampletwo", "", "passwd2", master_password)
+    initialized_vault.remove("exampletwo", "", master_password)
 
     entries = initialized_vault.search("example", master_password)
 
@@ -131,11 +131,11 @@ def test_search_excludes_trashed(initialized_vault: Vault, master_password: str)
 
 
 def test_remove_moves_to_trash(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.save("utility1", "passwd1", master_password)
-    initialized_vault.save("utility2", "passwd2", master_password)
-    initialized_vault.save("utility3", "passwd3", master_password)
+    initialized_vault.save("utility1", "", "passwd1", master_password)
+    initialized_vault.save("utility2", "", "passwd2", master_password)
+    initialized_vault.save("utility3", "", "passwd3", master_password)
 
-    initialized_vault.remove("utility2", master_password)
+    initialized_vault.remove("utility2", "", master_password)
 
     alive = Vault(initialized_vault.vault_file).search("", master_password)
     trashed = Vault(initialized_vault.vault_file).list_trashed("", master_password)
@@ -144,13 +144,13 @@ def test_remove_moves_to_trash(initialized_vault: Vault, master_password: str) -
 
 
 def test_remove_multiple(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.save("utility1", "passwd1", master_password)
-    initialized_vault.save("utility2", "passwd2", master_password)
-    initialized_vault.save("utility3", "passwd3", master_password)
-    initialized_vault.save("utility4", "passwd4", master_password)
+    initialized_vault.save("utility1", "", "passwd1", master_password)
+    initialized_vault.save("utility2", "", "passwd2", master_password)
+    initialized_vault.save("utility3", "", "passwd3", master_password)
+    initialized_vault.save("utility4", "", "passwd4", master_password)
 
-    initialized_vault.remove("utility2", master_password)
-    initialized_vault.remove("utility4", master_password)
+    initialized_vault.remove("utility2", "", master_password)
+    initialized_vault.remove("utility4", "", master_password)
 
     alive = Vault(initialized_vault.vault_file).search("", master_password)
     trashed = Vault(initialized_vault.vault_file).list_trashed("", master_password)
@@ -159,19 +159,19 @@ def test_remove_multiple(initialized_vault: Vault, master_password: str) -> None
 
 
 def test_remove_not_found(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.save("utility1", "passwd1", master_password)
-    initialized_vault.save("utility3", "passwd2", master_password)
+    initialized_vault.save("utility1", "", "passwd1", master_password)
+    initialized_vault.save("utility3", "", "passwd2", master_password)
 
     with pytest.raises(EntryNotFoundError):
-        initialized_vault.remove("utility2", master_password)
+        initialized_vault.remove("utility2", "", master_password)
 
 
 def test_restore(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.save("utility1", "passwd1", master_password)
-    initialized_vault.save("utility2", "passwd2", master_password)
-    initialized_vault.remove("utility2", master_password)
+    initialized_vault.save("utility1", "", "passwd1", master_password)
+    initialized_vault.save("utility2", "", "passwd2", master_password)
+    initialized_vault.remove("utility2", "", master_password)
 
-    initialized_vault.restore("utility2", master_password)
+    initialized_vault.restore("utility2", "", master_password)
 
     alive = Vault(initialized_vault.vault_file).search("", master_password)
     trashed = Vault(initialized_vault.vault_file).list_trashed("", master_password)
@@ -180,8 +180,8 @@ def test_restore(initialized_vault: Vault, master_password: str) -> None:
 
 
 def test_restore_not_found(initialized_vault: Vault, master_password: str) -> None:
-    initialized_vault.save("utility1", "passwd1", master_password)
-    initialized_vault.remove("utility1", master_password)
+    initialized_vault.save("utility1", "", "passwd1", master_password)
+    initialized_vault.remove("utility1", "", master_password)
 
     with pytest.raises(EntryNotFoundError):
-        initialized_vault.restore("utility2", master_password)
+        initialized_vault.restore("utility2", "", master_password)

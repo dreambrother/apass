@@ -64,7 +64,7 @@ def create(
     size: t.Annotated[int, typer.Option("--size", "-s", help="Password size")] = generator.DEFAULT_PASSWORD_SIZE,
     min_digits: t.Annotated[int | None, typer.Option("--min-digits", "-d", help="Minimum number of digits (0 to disable)")] = None,
     min_special: t.Annotated[int | None, typer.Option("--min-special", "-p", help="Minimum number of special characters (0 to disable)")] = None,
-    login: t.Annotated[str | None, typer.Option("--login", "-l", help="Service/utility login")] = None,
+    login: t.Annotated[str, typer.Option("--login", "-l", help="Service/utility login")] = "",
 ) -> None:
     """Create new password and copy it to the clipboard"""
     try:
@@ -74,13 +74,13 @@ def create(
 
     vault = _get_vault()
     try:
-        vault.save(name, service_password, master_password, login, force=False)
+        vault.save(name, login, service_password, master_password, force=False)
     except VaultNotInitializedError:
         _fail("Vault is not initialized. Run 'apass init' first.")
     except WrongPasswordError:
         _fail("Wrong password")
     except EntryAlreadyExistsError:
-        _fail(f"Entry '{name}' already exists. Use the 'save' command with --force to overwrite it.")
+        _fail(f"Entry {name} already exists. Use the 'save' command with --force to overwrite it.")
     clipboard.copy(service_password)
     typer.echo(f"Password for {name} copied to clipboard")
 
@@ -108,9 +108,7 @@ def get(
         entry = _ask_user_choice(name, entries)
 
     clipboard.copy(entry.password)
-    typer.echo(f"Password for {entry.name} copied to clipboard")
-    if entry.login is not None:
-        typer.echo(f"Login: {entry.login}")
+    typer.echo(f"Password for {entry} copied to clipboard")
 
 
 @app.command()
@@ -118,20 +116,21 @@ def save(
     name: t.Annotated[str, typer.Argument(help="Service/utility name")],
     master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, hidden=True)],
     service_password: t.Annotated[str, typer.Option(prompt="Service password", hide_input=True, hidden=True)],
-    login: t.Annotated[str | None, typer.Option("--login", "-l", help="Service/utility login")] = None,
+    login: t.Annotated[str, typer.Option("--login", "-l", help="Service/utility login")] = "",
     force: t.Annotated[bool, typer.Option("-f", "--force", help="Overwrite existing value")] = False,
 ) -> None:
     """Save existing password"""
     vault = _get_vault()
+    entry = PasswordEntry(name=name, login=login, password=service_password)
     try:
-        vault.save(name, service_password, master_password, login, force)
+        vault.save(name, login, service_password, master_password, force)
     except VaultNotInitializedError:
         _fail("Vault is not initialized. Run 'apass init' first.")
     except WrongPasswordError:
         _fail("Wrong password")
     except EntryAlreadyExistsError:
-        _fail(f"Entry '{name}' already exists. Use --force to overwrite it.")
-    typer.echo(f"Password for {name} set successfully")
+        _fail(f"Entry {entry} already exists. Use --force to overwrite it.")
+    typer.echo(f"Password for {entry} set successfully")
 
 
 @app.command()
@@ -156,7 +155,7 @@ def remove(
     else:
         entry = _ask_user_choice(name, entries)
 
-    vault.remove(entry.name, master_password)
+    vault.remove(entry.name, entry.login, master_password)
 
     typer.echo(f"Password for {entry.name} moved to Recycle Bin")
 
@@ -184,9 +183,9 @@ def restore(
         entry = _ask_user_choice(name, matches)
 
     try:
-        vault.restore(entry.name, master_password)
+        vault.restore(entry.name, entry.login, master_password)
     except EntryNotFoundError:
-        _fail(f"Entry '{entry.name}' is no longer in the Recycle Bin")
+        _fail(f"Entry {entry.name} is no longer in the Recycle Bin")
     typer.echo(f"Password for {entry.name} restored from Recycle Bin")
 
 
@@ -203,7 +202,7 @@ def _fail(message: str) -> t.NoReturn:
 def _ask_user_choice(name: str, entries: list[PasswordEntry]) -> PasswordEntry:
     typer.echo(f"Found {len(entries)} entries matching '{name}':\n")
     for i, entry in enumerate(entries, start=1):
-        typer.echo(f"  {i}: {entry.name}")
+        typer.echo(f"  {i}: {entry}")
     typer.echo()
     choice = typer.prompt("Choose entry number", type=int, default=1)
     if choice < 1 or choice > len(entries):

@@ -20,15 +20,18 @@ from apass.vault.merge import MergeResult
 class PasswordEntry:
     name: str
     password: str
-    login: str | None = None
+    login: str
 
     @classmethod
     def from_pykeepass(cls, entry: Entry) -> "PasswordEntry":
         return cls(
             name=cast(str, entry.title),
             password=cast(str, entry.password),
-            login=entry.username,
+            login=entry.username if entry.username else "",
         )
+
+    def __str__(self) -> str:
+        return self.name + (f"/{self.login}" if self.login else "")
 
 
 class Vault:
@@ -44,47 +47,45 @@ class Vault:
 
     def save(
         self,
-        service_name: str,
-        service_password: str,
+        name: str,
+        login: str,
+        password: str,
         master_password: str,
-        service_login: str | None = None,
         force: bool = False,
     ) -> None:
         kp = self._load(master_password)
-        existing = keepass.find_alive(kp, service_name)
+        existing = keepass.find_alive(kp, name, login)
         if existing is not None:
             if not force:
-                raise EntryAlreadyExistsError(service_name)
-            existing.password = service_password
-            if service_login is not None:
-                existing.username = service_login
+                raise EntryAlreadyExistsError(name)
+            existing.password = password
+            existing.username = login
             existing.touch(modify=True)
         else:
             kp.add_entry(
                 kp.root_group,
-                service_name,
-                service_login or "",
-                service_password,
-            ).touch(modify=True)
+                name,
+                login,
+                password,
+            )
         self._save(kp)
 
-    # TODO title as identity to ARCH.MD
     def search(self, query: str, master_password: str) -> list[PasswordEntry]:
         kp = self._load(master_password)
         return [PasswordEntry.from_pykeepass(e) for e in keepass.find_all_alive(kp) if keepass.matches(e, query)]
 
-    def remove(self, name: str, master_password: str) -> None:
+    def remove(self, name: str, login: str, master_password: str) -> None:
         kp = self._load(master_password)
-        entry = keepass.find_alive(kp, name)
+        entry = keepass.find_alive(kp, name, login)
         if entry is None:
             raise EntryNotFoundError(name)
         entry.touch(modify=True)
         kp.trash_entry(entry)
         self._save(kp)
 
-    def restore(self, name: str, master_password: str) -> None:
+    def restore(self, name: str, login: str, master_password: str) -> None:
         kp = self._load(master_password)
-        entry = keepass.find_trashed(kp, name)
+        entry = keepass.find_trashed(kp, name, login)
         if entry is None:
             raise EntryNotFoundError(name)
         kp.move_entry(entry, kp.root_group)

@@ -31,13 +31,20 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
 ## Module map
 
 - `cli.py` — Typer app, entry point, basic CLI commands (`init`, `create`, `get`, `save`, `remove`, `restore`);
-  `create` and `save` accept optional `--login` / `-l`; `remove` moves to Recycle Bin
+  `create` and `save` accept optional `--login` / `-l`; `remove` and `restore` look up by `name`
+  substring and disambiguate interactively when multiple entries match (since
+  `(name, login)` is the entry identity at the vault layer)
 - `vault/` — KDBX 4 (pykeepass) vault package:
   - `__init__.py` — `Vault` class backed by pykeepass. Methods: `init_db`, `save`
     (with `force` overwrite), `search` (case-insensitive substring on title),
     `remove` (→ Recycle Bin), `restore` (← from Recycle Bin), `list_trashed`,
     `to_bytes` (for sync upload), `merge` (sync merge with remote bytes).
-    Data model: `PasswordEntry` (`name`, `password`, `login: str | None`).
+    Entry identity is the pair `(name, login)`, so `save` / `remove` / `restore`
+    all take `login` as a positional argument. `search` and `list_trashed` still
+    match by `name` substring (used by `cli.py` to disambiguate before calling
+    `remove` / `restore`).
+    Data model: `PasswordEntry` (`name`, `password`, `login: str`) — empty
+    `username` in KDBX is normalized to `""`, so `login` is always a `str`.
     Atomic file writes are handled by pykeepass internally (writes to `.tmp` then `rename`).
   - `errors.py` — Custom exceptions: `VaultNotInitializedError`,
     `EntryAlreadyExistsError`, `EntryNotFoundError`, `CorruptedVaultError`,
@@ -45,6 +52,8 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
   - `keepass.py` — pykeepass helpers: `find_alive` / `find_all_alive`,
     `find_trashed` / `find_all_trashed`, `get_all_entries`,
     `validate_entries` (rejects empty titles/passwords at load time).
+    `find_alive` and `find_trashed` match on the `(name, login)` pair
+    (the `login` argument is compared against `entry.username or ""`).
   - `merge.py` — `MergeResult` dataclass and `merge_dbs()` function.
     Merge key: entry `uuid` (KDBX stable UUID, not title). LWW by entry
     `mtime`. Trashed entries (KDBX Recycle Bin) are merged with the same

@@ -50,16 +50,22 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
     `EntryAlreadyExistsError`, `EntryNotFoundError`, `CorruptedVaultError`,
     `WrongPasswordError`.
   - `keepass.py` — pykeepass helpers: `find_alive` / `find_all_alive`,
-    `find_trashed` / `find_all_trashed`, `get_all_entries`,
-    `validate_entries` (rejects empty titles/passwords at load time).
-    `find_alive` and `find_trashed` match on the `(name, login)` pair
-    (the `login` argument is compared against `entry.username or ""`).
+    `find_trashed` / `find_all_trashed`, `get_all_entries`, `get_title`
+    (raises if the KDBX title is empty), `validate_entries` (rejects
+    empty titles/passwords at load time). `find_alive` and `find_trashed`
+    match on the `(name, login)` pair (the `login` argument is compared
+    against `entry.username or ""`).
   - `merge.py` — `MergeResult` dataclass and `merge_dbs()` function.
-    Merge key: entry `uuid` (KDBX stable UUID, not title). LWW by entry
-    `mtime`. Trashed entries (KDBX Recycle Bin) are merged with the same
-    LWW rule — the side with the newer modification time wins, regardless
-    of alive vs. trashed state. `MergeResult` fields carry entry `title`s
-    (for human-readable output), not UUIDs.
+    Two passes per remote entry: (1) merge by `uuid` (KDBX stable UUID,
+    not title) with LWW by `mtime` — trashed entries follow the same LWW
+    rule, the side with the newer mtime wins regardless of alive vs.
+    trashed state; (2) deduplication by `(title, username)` pair — when
+    a remote entry has no uuid match but another local/remote entry
+    shares the same `(title, username)`, the older side is renamed with
+    a numeric suffix (`_N` based on existing suffix count) and moved to
+    the Recycle Bin. `MergeResult` fields carry human-readable strings
+    formatted as `title/username` (or just `title` when username is empty),
+    not UUIDs.
 - `generator.py` — Password generation with configurable size and minimum
   digit/special character guarantees (`create_password`)
 - `config.py` — Database path resolution: `APASS_DB_PATH` env var or `~/.apass/vault.kdbx`

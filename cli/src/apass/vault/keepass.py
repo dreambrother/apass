@@ -90,3 +90,10 @@ def validate_entries(kp: PyKeePass) -> None:
             raise CorruptedVaultError("Empty entry title is not supported yet")
         if not e.password:
             raise CorruptedVaultError("Empty entry password is not supported yet")
+
+
+def get_title(entry: Entry) -> str:
+    title = entry.title
+    if title is None:
+        raise ValueError(f"entry {entry.uuid} has no title")
+    return title

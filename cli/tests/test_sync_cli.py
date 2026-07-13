@@ -154,7 +154,7 @@ def test_sync_run_first_time() -> None:
 
 
 def test_sync_run_no_local_vault() -> None:
-    from apass.vault import VaultNotInitializedError
+    from apass.vault.errors import VaultNotInitializedError
 
     mock_client = MagicMock()
     mock_client.find_vault_file.return_value = "remote_file_id"
@@ -270,7 +270,7 @@ def test_sync_run_both_exist_merges_and_uploads() -> None:
 
 
 def test_sync_diff_no_local_vault() -> None:
-    from apass.vault import VaultNotInitializedError
+    from apass.vault.errors import VaultNotInitializedError
 
     mock_client = MagicMock()
     mock_client.find_vault_file.return_value = "remote_file_id"

@@ -8,7 +8,7 @@ from apass.config import get_db_path
 from apass.sync import operations
 from apass.sync.backend import CloudApiError, NotLoggedInError
 from apass.sync.state import BackendType, SyncState, load_sync_state, save_sync_state
-from apass.vault import Vault
+from apass.vault.db import Vault
 from apass.vault.errors import VaultNotInitializedError, WrongPasswordError
 from apass.vault.merge import MergeResult
 

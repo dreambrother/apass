@@ -5,7 +5,7 @@ from apass.sync.backend import OAuthProvider, SyncBackend
 from apass.sync.oauth import GoogleOAuthProvider
 from apass.sync.state import BackendType, load_sync_state, save_sync_state
 from apass.sync.yandex_oauth import YandexOAuthProvider
-from apass.vault import Vault
+from apass.vault.db import Vault
 from apass.vault import keepass
 from apass.vault.errors import WrongPasswordError
 from apass.vault.merge import MergeResult

@@ -8,7 +8,7 @@ import pykeepass.pykeepass as _pk
 import pytest
 from construct import Container
 
-from apass.vault import Vault
+from apass.vault.db import Vault
 
 
 @pytest.fixture(scope="session", autouse=True)

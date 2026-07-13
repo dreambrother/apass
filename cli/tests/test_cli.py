@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from apass.vault import PasswordEntry
+from apass.vault.db import PasswordEntry
 from typer.testing import CliRunner
 
 from apass.cli import app
@@ -358,7 +358,7 @@ def test_remove_multiple_matches_default_choice() -> None:
 
 
 def test_restore_single_match() -> None:
-    from apass.vault import PasswordEntry
+    from apass.vault.db import PasswordEntry
 
     mock_entry = PasswordEntry(name="example", login="u", password="s3cret")
 

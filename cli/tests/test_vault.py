@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from apass.vault import (
+from apass.vault.db import (
     Vault,
 )
 from apass.vault.errors import (

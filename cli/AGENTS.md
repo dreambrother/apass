@@ -35,17 +35,20 @@ Entry point defined as `apass.cli:app` (Typer app) in `pyproject.toml` (`[projec
   substring and disambiguate interactively when multiple entries match (since
   `(name, login)` is the entry identity at the vault layer)
 - `vault/` — KDBX 4 (pykeepass) vault package:
-  - `__init__.py` — `Vault` class backed by pykeepass. Methods: `init_db`, `save`
-    (with `force` overwrite), `search` (case-insensitive substring on title),
-    `remove` (→ Recycle Bin), `restore` (← from Recycle Bin), `list_trashed`,
-    `to_bytes` (for sync upload), `merge` (sync merge with remote bytes).
-    Entry identity is the pair `(name, login)`, so `save` / `remove` / `restore`
-    all take `login` as a positional argument. `search` and `list_trashed` still
-    match by `name` substring (used by `cli.py` to disambiguate before calling
-    `remove` / `restore`).
-    Data model: `PasswordEntry` (`name`, `password`, `login: str`) — empty
-    `username` in KDBX is normalized to `""`, so `login` is always a `str`.
-    Atomic file writes are handled by pykeepass internally (writes to `.tmp` then `rename`).
+  - `__init__.py` — empty (package marker)
+  - `db.py` — `Vault` class (renamed from `__init__.py`). Backed by pykeepass.
+    Methods: `init_db`, `save` (with `force` overwrite), `search`
+    (case-insensitive substring on title), `remove` (→ Recycle Bin),
+    `restore` (← from Recycle Bin), `list_trashed`, `to_bytes`
+    (for sync upload), `merge` (sync merge with remote bytes).
+    Entry identity is the pair `(name, login)`, so `save` / `remove` /
+    `restore` all take `login` as a positional argument. `search` and
+    `list_trashed` still match by `name` substring (used by `cli.py` to
+    disambiguate before calling `remove` / `restore`).
+    Data model: `PasswordEntry` (`name`, `password`, `login: str`) —
+    empty `username` in KDBX is normalized to `""`, so `login` is always
+    a `str`. Atomic file writes are handled by pykeepass internally
+    (writes to `.tmp` then `rename`).
   - `errors.py` — Custom exceptions: `VaultNotInitializedError`,
     `EntryAlreadyExistsError`, `EntryNotFoundError`, `CorruptedVaultError`,
     `WrongPasswordError`.

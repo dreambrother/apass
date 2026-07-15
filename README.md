@@ -63,6 +63,8 @@ poetry run apass create github --size 24 --min-digits 2 --min-special 2
 | `--min-digits` | `-d` | Minimum number of digits (0 to disable) | — |
 | `--min-special` | `-p` | Minimum number of special characters (0 to disable) | — |
 | `--login` | `-l` | Service/utility login | — |
+| `--note` | `-n` | Note text | — |
+| `--note-edit` | `-E` | Open `$EDITOR` for multiline note | — |
 
 #### `apass get <name>`
 
@@ -85,6 +87,8 @@ poetry run apass save github --force
 |---|---|---|---|
 | `--force` | `-f` | Overwrite existing entry | `false` |
 | `--login` | `-l` | Service/utility login | — |
+| `--note` | `-n` | Note text | — |
+| `--note-edit` | `-E` | Open `$EDITOR` for multiline note | — |
 
 #### `apass remove <name>`
 

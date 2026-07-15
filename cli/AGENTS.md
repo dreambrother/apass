@@ -23,7 +23,8 @@ Entry point: `apass.cli:app` (Typer).
 
 ## Module map
 
-- `cli.py` — CLI commands (init, create, get, save, remove, restore)
+- `cli.py` — main CLI handlers: init, create, get, save, remove, restore
+- `sync/sync_cli.py` — sync subcommand handlers: setup, login, logout, status, diff, run, delete-remote, backend
 - `vault/` — KDBX 4 vault (pykeepass): db, errors, keepass helpers, merge
 - `generator.py` — password generation
 - `config.py` — DB path resolution (`APASS_DB_PATH` or `~/.apass/vault.kdbx`)

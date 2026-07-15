@@ -1,4 +1,6 @@
 import os
+import subprocess
+import tempfile
 import typing as t
 
 import typer
@@ -62,6 +64,8 @@ def create(
     min_digits: t.Annotated[int | None, typer.Option("--min-digits", "-d", help="Minimum number of digits (0 to disable)")] = None,
     min_special: t.Annotated[int | None, typer.Option("--min-special", "-p", help="Minimum number of special characters (0 to disable)")] = None,
     login: t.Annotated[str, typer.Option("--login", "-l", help="Service/utility login")] = "",
+    note: t.Annotated[str | None, typer.Option("-n", "--note", help="Note text")] = None,
+    note_edit: t.Annotated[bool, typer.Option("-E", "--note-edit", help="Open $EDITOR for note")] = False,
 ) -> None:
     """Create new password and copy it to the clipboard"""
     try:
@@ -69,9 +73,10 @@ def create(
     except ValueError as err:
         _fail(f"Input errors:\n{err}")
 
+    resolved_note = _resolve_note(note, note_edit, name, is_create=True)
     vault = _get_vault()
     try:
-        vault.save(name, login, service_password, master_password, force=False)
+        vault.save(name, login, service_password, master_password, force=False, notes=resolved_note)
     except VaultNotInitializedError:
         _fail("Vault is not initialized. Run 'apass init' first.")
     except WrongPasswordError:
@@ -106,6 +111,8 @@ def get(
 
     clipboard.copy(entry.password)
     typer.echo(f"Password for {entry} copied to clipboard")
+    if entry.notes:
+        typer.echo(f"Note:\n{entry.notes}")
 
 
 @app.command()
@@ -115,12 +122,15 @@ def save(
     service_password: t.Annotated[str, typer.Option(prompt="Service password", hide_input=True, hidden=True)],
     login: t.Annotated[str, typer.Option("--login", "-l", help="Service/utility login")] = "",
     force: t.Annotated[bool, typer.Option("-f", "--force", help="Overwrite existing value")] = False,
+    note: t.Annotated[str | None, typer.Option("-n", "--note", help="Note text")] = None,
+    note_edit: t.Annotated[bool, typer.Option("-E", "--note-edit", help="Open $EDITOR for note")] = False,
 ) -> None:
     """Save existing password"""
     vault = _get_vault()
+    resolved_note = _resolve_note(note, note_edit, name, is_create=False)
     entry = PasswordEntry(name=name, login=login, password=service_password)
     try:
-        vault.save(name, login, service_password, master_password, force)
+        vault.save(name, login, service_password, master_password, force, notes=resolved_note)
     except VaultNotInitializedError:
         _fail("Vault is not initialized. Run 'apass init' first.")
     except WrongPasswordError:
@@ -194,6 +204,39 @@ def _fail(message: str) -> t.NoReturn:
     """Print an error message in red and exit with code 1."""
     typer.secho(message, err=True, fg=typer.colors.RED)
     raise typer.Exit(1)
+
+
+def _resolve_note(note: str | None, note_edit: bool, entry_name: str, is_create: bool) -> str | None:
+    if note is not None:
+        return note
+    if note_edit:
+        return _edit_note(entry_name)
+    return None
+
+
+def _edit_note(entry_name: str) -> str | None:
+    editor = os.environ.get("EDITOR")
+    if not editor:
+        typer.secho(
+            "Warning: $EDITOR is not set, note will not be saved.",
+            err=True,
+            fg=typer.colors.YELLOW,
+        )
+        return None
+    hint = f"# Note for: {entry_name}\n# Lines starting with '#' will be stripped.\n"
+    fd, tmp_path = tempfile.mkstemp(suffix=".txt")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(hint)
+        subprocess.run([editor, tmp_path], check=True)
+        with open(tmp_path) as f:
+            text = f.read()
+    except subprocess.CalledProcessError:
+        return None
+    finally:
+        os.unlink(tmp_path)
+    lines = [line for line in text.splitlines() if not line.startswith("#")]
+    return "\n".join(lines).strip()
 
 
 def _ask_user_choice(name: str, entries: list[PasswordEntry]) -> PasswordEntry:

@@ -21,6 +21,7 @@ class PasswordEntry:
     name: str
     password: str
     login: str
+    notes: str = ""
 
     @classmethod
     def from_pykeepass(cls, entry: Entry) -> "PasswordEntry":
@@ -28,6 +29,7 @@ class PasswordEntry:
             name=cast(str, entry.title),
             password=cast(str, entry.password),
             login=entry.username if entry.username else "",
+            notes=entry.notes if entry.notes else "",
         )
 
     def __str__(self) -> str:
@@ -52,6 +54,7 @@ class Vault:
         password: str,
         master_password: str,
         force: bool = False,
+        notes: str | None = None,
     ) -> None:
         kp = self._load(master_password)
         existing = keepass.find_alive(kp, name, login)
@@ -60,6 +63,8 @@ class Vault:
                 raise EntryAlreadyExistsError(name)
             existing.password = password
             existing.username = login
+            if notes is not None:
+                existing.notes = notes
             existing.touch(modify=True)
         else:
             kp.add_entry(
@@ -67,6 +72,7 @@ class Vault:
                 name,
                 login,
                 password,
+                notes=notes,
             )
         self._save(kp)
 

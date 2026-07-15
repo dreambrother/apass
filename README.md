@@ -18,6 +18,8 @@ A dead-simple cross-platform **A**nother **Pass**word manager.
 - [x] Restore (recover entry from Recycle Bin)
 - [x] Cloud sync (Google Drive, Yandex Disk)
 - [x] Delete remote vault file
+- [ ] Multiline note
+- [ ] Don't ask for password every run
 - [ ] List Recycle Bin
 - [ ] Rotate
 - [ ] Remove from bin

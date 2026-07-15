@@ -185,3 +185,36 @@ def test_restore_not_found(initialized_vault: Vault, master_password: str) -> No
 
     with pytest.raises(EntryNotFoundError):
         initialized_vault.restore("utility2", "", master_password)
+
+
+def test_save_with_notes(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.save("example", "", "passwd", master_password, notes="my secret note")
+
+    vault2 = Vault(initialized_vault.vault_file)
+    entries = vault2.search("", master_password)
+    assert len(entries) == 1
+    assert entries[0].notes == "my secret note"
+
+
+def test_save_force_update_preserves_note(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.save("example", "", "passwd1", master_password, notes="keep this")
+
+    initialized_vault.save("example", "", "passwd2", master_password, force=True)
+
+    vault2 = Vault(initialized_vault.vault_file)
+    entries = vault2.search("", master_password)
+    assert len(entries) == 1
+    assert entries[0].password == "passwd2"
+    assert entries[0].notes == "keep this"
+
+
+def test_save_force_update_with_note(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.save("example", "", "passwd1", master_password, notes="old note")
+
+    initialized_vault.save("example", "", "passwd2", master_password, force=True, notes="new note")
+
+    vault2 = Vault(initialized_vault.vault_file)
+    entries = vault2.search("", master_password)
+    assert len(entries) == 1
+    assert entries[0].password == "passwd2"
+    assert entries[0].notes == "new note"

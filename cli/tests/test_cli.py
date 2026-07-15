@@ -57,7 +57,7 @@ def test_create_prompts_for_password_and_stores() -> None:
         result = runner.invoke(app, ["create", "example"], input="master123\n")
 
     assert result.exit_code == 0
-    mock_vault.save.assert_called_once_with("example", "", "abc123", "master123", force=False)
+    mock_vault.save.assert_called_once_with("example", "", "abc123", "master123", force=False, notes=None)
     mock_copy.assert_called_once_with("abc123")
     assert "Password for example copied to clipboard" in result.output
 
@@ -83,7 +83,7 @@ def test_create_all_params_passed() -> None:
         )
 
     assert result.exit_code == 0
-    mock_vault.save.assert_called_once_with("example", "example_login", "abc123", "master123", force=False)
+    mock_vault.save.assert_called_once_with("example", "example_login", "abc123", "master123", force=False, notes=None)
     mock_copy.assert_called_once_with("abc123")
     mock_genetator.assert_called_once_with(size=15, min_digits=5, min_special=2)
     assert "Password for example copied to clipboard" in result.output
@@ -257,7 +257,7 @@ def test_save_prompts_for_passwords_and_stores() -> None:
         result = runner.invoke(app, ["save", "example"], input="master123\nservice123\n")
 
     assert result.exit_code == 0
-    mock_vault.save.assert_called_once_with("example", "", "service123", "master123", False)
+    mock_vault.save.assert_called_once_with("example", "", "service123", "master123", False, notes=None)
     assert "Password for example set successfully" in result.output
 
 
@@ -269,7 +269,7 @@ def test_save_with_login_prompts_for_passwords_and_stores_force() -> None:
         result = runner.invoke(app, ["save", "example", "-l", "test_login", "--force"], input="master123\nservice123\n")
 
     assert result.exit_code == 0
-    mock_vault.save.assert_called_once_with("example", "test_login", "service123", "master123", True)
+    mock_vault.save.assert_called_once_with("example", "test_login", "service123", "master123", True, notes=None)
     assert "Password for example/test_login set successfully" in result.output
 
 
@@ -400,3 +400,184 @@ def test_restore_fails_when_vault_not_initialized() -> None:
 
     assert result.exit_code == 1
     assert "not initialized" in result.output
+
+
+def test_create_with_inline_note() -> None:
+    mock_vault = MagicMock()
+    with (
+        patch("apass.generator.create_password", return_value="abc123"),
+        patch("apass.cli._get_vault", return_value=mock_vault),
+        patch("apass.clipboard.copy"),
+    ):
+        result = runner.invoke(app, ["create", "example", "-n", "my secret note"], input="master123\n")
+
+    assert result.exit_code == 0
+    mock_vault.save.assert_called_once_with("example", "", "abc123", "master123", force=False, notes="my secret note")
+
+
+def test_create_without_note() -> None:
+    mock_vault = MagicMock()
+    with (
+        patch("apass.generator.create_password", return_value="abc123"),
+        patch("apass.cli._get_vault", return_value=mock_vault),
+        patch("apass.clipboard.copy"),
+    ):
+        result = runner.invoke(app, ["create", "example"], input="master123\n")
+
+    assert result.exit_code == 0
+    mock_vault.save.assert_called_once_with("example", "", "abc123", "master123", force=False, notes=None)
+
+
+def test_create_note_editor_opens() -> None:
+    mock_vault = MagicMock()
+
+    def fake_editor(cmd, check=True):
+        with open(cmd[1], "w") as f:
+            f.write("editor note\n")
+
+    with (
+        patch("apass.generator.create_password", return_value="abc123"),
+        patch("apass.cli._get_vault", return_value=mock_vault),
+        patch("apass.clipboard.copy"),
+        patch("apass.cli.subprocess.run", side_effect=fake_editor) as mock_run,
+        patch.dict("os.environ", {"EDITOR": "vim"}),
+    ):
+        result = runner.invoke(app, ["create", "example", "--note-edit"], input="master123\n")
+
+    assert result.exit_code == 0
+    mock_run.assert_called_once()
+    assert mock_run.call_args[0][0][0] == "vim"
+    mock_vault.save.assert_called_once_with("example", "", "abc123", "master123", force=False, notes="editor note")
+
+
+def test_create_note_editor_strips_comments() -> None:
+    mock_vault = MagicMock()
+    editor_output = "# Note for: example\n# Lines starting with '#' will be stripped.\nreal note here\n"
+
+    def fake_editor(cmd, check=True):
+        with open(cmd[1], "w") as f:
+            f.write(editor_output)
+
+    with (
+        patch("apass.generator.create_password", return_value="abc123"),
+        patch("apass.cli._get_vault", return_value=mock_vault),
+        patch("apass.clipboard.copy"),
+        patch("apass.cli.subprocess.run", side_effect=fake_editor),
+        patch.dict("os.environ", {"EDITOR": "vim"}),
+    ):
+        result = runner.invoke(app, ["create", "example", "--note-edit"], input="master123\n")
+
+    assert result.exit_code == 0
+    mock_vault.save.assert_called_once_with("example", "", "abc123", "master123", force=False, notes="real note here")
+
+
+def test_create_note_editor_cancelled() -> None:
+    mock_vault = MagicMock()
+
+    def fake_editor(cmd, check=True):
+        import subprocess
+        raise subprocess.CalledProcessError(1, cmd)
+
+    with (
+        patch("apass.generator.create_password", return_value="abc123"),
+        patch("apass.cli._get_vault", return_value=mock_vault),
+        patch("apass.clipboard.copy"),
+        patch("apass.cli.subprocess.run", side_effect=fake_editor),
+        patch.dict("os.environ", {"EDITOR": "vim"}),
+    ):
+        result = runner.invoke(app, ["create", "example", "--note-edit"], input="master123\n")
+
+    assert result.exit_code == 0
+    mock_vault.save.assert_called_once_with("example", "", "abc123", "master123", force=False, notes=None)
+
+
+def test_create_note_no_editor_warning() -> None:
+    mock_vault = MagicMock()
+    with (
+        patch("apass.generator.create_password", return_value="abc123"),
+        patch("apass.cli._get_vault", return_value=mock_vault),
+        patch("apass.clipboard.copy"),
+        patch.dict("os.environ", {"EDITOR": ""}),
+    ):
+        result = runner.invoke(
+            app, ["create", "example", "--note-edit"], input="master123\n",
+        )
+
+    assert result.exit_code == 0
+    assert "$EDITOR is not set" in result.stderr
+    mock_vault.save.assert_called_once_with("example", "", "abc123", "master123", force=False, notes=None)
+
+
+def test_save_with_inline_note() -> None:
+    mock_vault = MagicMock()
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(
+            app, ["save", "example", "-n", "some note"],
+            input="master123\nservice123\n",
+        )
+
+    assert result.exit_code == 0
+    mock_vault.save.assert_called_once_with("example", "", "service123", "master123", False, notes="some note")
+
+
+def test_save_force_without_note_preserves() -> None:
+    mock_vault = MagicMock()
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(
+            app, ["save", "example", "--force"],
+            input="master123\nservice123\n",
+        )
+
+    assert result.exit_code == 0
+    mock_vault.save.assert_called_once_with("example", "", "service123", "master123", True, notes=None)
+
+
+def test_save_force_with_note_updates() -> None:
+    mock_vault = MagicMock()
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(
+            app, ["save", "example", "--force", "-n", "new note"],
+            input="master123\nservice123\n",
+        )
+
+    assert result.exit_code == 0
+    mock_vault.save.assert_called_once_with("example", "", "service123", "master123", True, notes="new note")
+
+
+def test_get_shows_note() -> None:
+    mock_vault = MagicMock()
+    mock_vault.search.return_value = [
+        PasswordEntry(name="example", login="", password="s3cret", notes="2FA backup codes in drawer"),
+    ]
+
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+        patch("apass.clipboard.copy"),
+    ):
+        result = runner.invoke(app, ["get", "example"], input="master123\n")
+
+    assert result.exit_code == 0
+    assert "Note:" in result.output
+    assert "2FA backup codes in drawer" in result.output
+
+
+def test_get_no_note_silent() -> None:
+    mock_vault = MagicMock()
+    mock_vault.search.return_value = [
+        PasswordEntry(name="example", login="", password="s3cret"),
+    ]
+
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+        patch("apass.clipboard.copy"),
+    ):
+        result = runner.invoke(app, ["get", "example"], input="master123\n")
+
+    assert result.exit_code == 0
+    assert "Note:" not in result.output

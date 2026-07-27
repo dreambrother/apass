@@ -2,7 +2,8 @@ import os
 from pathlib import Path
 
 ENV_DB_PATH = "APASS_DB_PATH"
-DEFAULT_DB_PATH = Path.home() / ".apass" / "vault.kdbx"
+APASS_DIR = Path.home() / ".apass"
+DEFAULT_DB_PATH = APASS_DIR / "vault.kdbx"
 
 
 def get_db_path() -> Path:

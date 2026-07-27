@@ -1,6 +1,6 @@
 import typing as t
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import typer
 
@@ -82,7 +82,7 @@ def sync_status() -> None:
     typer.echo(f"Logged in as: {state.account_email or 'unknown'}")
     typer.echo(f"Remote file ID: {state.remote_file_id or 'not synced yet'}")
     if state.last_sync_at:
-        dt = datetime.fromtimestamp(state.last_sync_at, tz=timezone.utc)
+        dt = datetime.fromtimestamp(state.last_sync_at, tz=UTC)
         typer.echo(f"Last sync: {dt.isoformat()}")
     else:
         typer.echo("Last sync: never")
@@ -119,6 +119,8 @@ def sync_run(
     _print_merge_result(result.merge_result, header="Merged local and remote vaults.")
     typer.echo(f"Synced with {provider.get_display_name()}.")
     typer.echo(f"Remote file ID: {result.remote_file_id}")
+    if result.backup_path is not None:
+        typer.echo(f"Backup saved: {result.backup_path}")
 
 
 @sync_app.command("backend")

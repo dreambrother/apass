@@ -1,12 +1,14 @@
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 from apass.sync.backend import OAuthProvider, SyncBackend
+from apass.sync.backup import create_backup
 from apass.sync.oauth import GoogleOAuthProvider
 from apass.sync.state import BackendType, load_sync_state, save_sync_state
 from apass.sync.yandex_oauth import YandexOAuthProvider
-from apass.vault.db import Vault
 from apass.vault import keepass
+from apass.vault.db import Vault
 from apass.vault.errors import WrongPasswordError
 from apass.vault.merge import MergeResult
 
@@ -36,6 +38,8 @@ def perform_sync(
     state = load_sync_state()
     merge_result: MergeResult | None = None
 
+    backup_path = create_backup(vault.vault_file)
+
     remote_file_id = state.remote_file_id or client.find_vault_file()
     if remote_file_id:
         remote_bytes = client.download_vault_file(remote_file_id)
@@ -48,7 +52,7 @@ def perform_sync(
     state.last_sync_at = int(time.time())
     save_sync_state(state)
 
-    return SyncResult(merge_result=merge_result, remote_file_id=new_file_id)
+    return SyncResult(merge_result=merge_result, remote_file_id=new_file_id, backup_path=backup_path)
 
 
 def compute_diff(vault: Vault, master_password: str) -> MergeResult | None:
@@ -109,3 +113,4 @@ def _perform_merge(local_vault: Vault, remote_bytes: bytes, master_password: str
 class SyncResult:
     merge_result: MergeResult | None
     remote_file_id: str
+    backup_path: Path | None

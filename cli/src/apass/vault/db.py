@@ -6,8 +6,7 @@ from typing import cast
 from pykeepass import PyKeePass, create_database
 from pykeepass.entry import Entry
 
-import apass.vault.keepass as keepass
-from apass.vault import merge
+from apass.vault import keepass, merge
 from apass.vault.errors import (
     EntryAlreadyExistsError,
     EntryNotFoundError,
@@ -24,7 +23,7 @@ class PasswordEntry:
     notes: str = ""
 
     @classmethod
-    def from_pykeepass(cls, entry: Entry) -> "PasswordEntry":
+    def from_pykeepass(cls, entry: Entry) -> PasswordEntry:
         return cls(
             name=cast(str, entry.title),
             password=cast(str, entry.password),

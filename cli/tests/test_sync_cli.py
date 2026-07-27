@@ -1,9 +1,9 @@
 from unittest.mock import MagicMock, patch
 
-from apass.vault.merge import MergeResult
 from typer.testing import CliRunner
 
 from apass.cli import app
+from apass.vault.merge import MergeResult
 
 runner = CliRunner()
 
@@ -131,6 +131,7 @@ def test_sync_run_first_time() -> None:
     mock_vault = MagicMock()
     mock_vault.merge.return_value = MergeResult()
     mock_vault.to_bytes.return_value = remote_bytes
+    mock_vault.vault_file = MagicMock()
 
     mock_state = MagicMock()
     mock_state.remote_file_id = None
@@ -143,6 +144,7 @@ def test_sync_run_first_time() -> None:
         patch("apass.sync.operations.get_provider", return_value=mock_provider),
         patch("apass.sync.operations.load_sync_state", return_value=mock_state),
         patch("apass.sync.operations.save_sync_state") as mock_save_state,
+        patch("apass.sync.operations.create_backup", return_value=None) as mock_create_backup,
         patch("apass.sync.sync_cli.Vault", return_value=mock_vault),
     ):
         result = runner.invoke(app, ["sync", "run"], input="master123\n")
@@ -151,6 +153,7 @@ def test_sync_run_first_time() -> None:
     assert "Synced with Google Drive" in result.output
     mock_client.upload_vault_file.assert_called_with(remote_bytes, None)
     mock_save_state.assert_called_once_with(mock_state)
+    mock_create_backup.assert_called_once_with(mock_vault.vault_file)
 
 
 def test_sync_run_no_local_vault() -> None:
@@ -163,6 +166,7 @@ def test_sync_run_no_local_vault() -> None:
 
     mock_vault = MagicMock()
     mock_vault.merge.side_effect = VaultNotInitializedError()
+    mock_vault.vault_file = MagicMock()
 
     mock_state = MagicMock()
     mock_state.remote_file_id = None
@@ -175,6 +179,7 @@ def test_sync_run_no_local_vault() -> None:
         patch("apass.sync.operations.get_provider", return_value=mock_provider),
         patch("apass.sync.operations.load_sync_state", return_value=mock_state),
         patch("apass.sync.operations.save_sync_state") as mock_save_state,
+        patch("apass.sync.operations.create_backup", return_value=None) as mock_create_backup,
         patch("apass.sync.sync_cli.Vault", return_value=mock_vault),
     ):
         result = runner.invoke(app, ["sync", "run"], input="master123\n")
@@ -184,6 +189,7 @@ def test_sync_run_no_local_vault() -> None:
     mock_vault.merge.assert_called_once()
     mock_client.upload_vault_file.assert_not_called()
     mock_save_state.assert_not_called()
+    mock_create_backup.assert_called_once_with(mock_vault.vault_file)
 
 
 def test_sync_run_both_empty() -> None:
@@ -195,6 +201,7 @@ def test_sync_run_both_empty() -> None:
     mock_vault = MagicMock()
     mock_vault.merge.return_value = MergeResult()
     mock_vault.to_bytes.return_value = payload
+    mock_vault.vault_file = MagicMock()
 
     mock_state = MagicMock()
     mock_state.remote_file_id = None
@@ -207,6 +214,7 @@ def test_sync_run_both_empty() -> None:
         patch("apass.sync.operations.get_provider", return_value=mock_provider),
         patch("apass.sync.operations.load_sync_state", return_value=mock_state),
         patch("apass.sync.operations.save_sync_state") as mock_save_state,
+        patch("apass.sync.operations.create_backup", return_value=None) as mock_create_backup,
         patch("apass.sync.sync_cli.Vault", return_value=mock_vault),
     ):
         result = runner.invoke(app, ["sync", "run"], input="master123\n")
@@ -219,6 +227,7 @@ def test_sync_run_both_empty() -> None:
     mock_vault.to_bytes.assert_called_once_with("master123")
     mock_client.upload_vault_file.assert_called_once_with(payload, None)
     mock_save_state.assert_called_once_with(mock_state)
+    mock_create_backup.assert_called_once_with(mock_vault.vault_file)
 
 
 def test_sync_run_both_exist_merges_and_uploads() -> None:
@@ -238,6 +247,7 @@ def test_sync_run_both_exist_merges_and_uploads() -> None:
         restored_from_trash=["resurrected"],
     )
     mock_vault.to_bytes.return_value = payload
+    mock_vault.vault_file = MagicMock()
 
     mock_state = MagicMock()
     mock_state.remote_file_id = "remote_file_id"
@@ -250,6 +260,7 @@ def test_sync_run_both_exist_merges_and_uploads() -> None:
         patch("apass.sync.operations.get_provider", return_value=mock_provider),
         patch("apass.sync.operations.load_sync_state", return_value=mock_state),
         patch("apass.sync.operations.save_sync_state") as mock_save_state,
+        patch("apass.sync.operations.create_backup", return_value=None) as mock_create_backup,
         patch("apass.sync.sync_cli.Vault", return_value=mock_vault),
     ):
         result = runner.invoke(app, ["sync", "run"], input="master123\n")
@@ -267,6 +278,7 @@ def test_sync_run_both_exist_merges_and_uploads() -> None:
     mock_vault.to_bytes.assert_called_once_with("master123")
     mock_client.upload_vault_file.assert_called_once_with(payload, "remote_file_id")
     mock_save_state.assert_called_once_with(mock_state)
+    mock_create_backup.assert_called_once_with(mock_vault.vault_file)
 
 
 def test_sync_diff_no_local_vault() -> None:

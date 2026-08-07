@@ -89,30 +89,49 @@ def create(
 
 @app.command()
 def get(
-    name: t.Annotated[str, typer.Argument(help="Service/utility name")],
+    query: t.Annotated[str, typer.Argument(help="Service/utility name")],
     master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, hidden=True)],
 ) -> None:
     """Search for a password by name and copy it to the clipboard"""
     vault = _get_vault()
     try:
-        entries = vault.search(name, master_password)
+        entries = vault.search(query, master_password)
     except VaultNotInitializedError:
         _fail("Vault is not initialized. Run 'apass init' first.")
     except WrongPasswordError:
         _fail("Wrong password")
 
     if not entries:
-        _fail(f"No entries found for '{name}'")
+        _fail(f"No entries found for '{query}'")
 
     if len(entries) == 1:
         entry = entries[0]
     else:
-        entry = _ask_user_choice(name, entries)
+        entry = _ask_user_choice(query, entries)
 
     clipboard.copy(entry.password)
     typer.echo(f"Password for {entry} copied to clipboard")
     if entry.notes:
         typer.echo(f"Note:\n{entry.notes}")
+
+
+@app.command(name="list")
+def list_entries(
+    master_password: t.Annotated[str, typer.Option(prompt="Master password", hide_input=True, hidden=True)],
+    query: t.Annotated[str, typer.Argument(help="Service/utility name")] = "",
+) -> None:
+    """Search for a password by name and copy it to the clipboard"""
+    vault = _get_vault()
+    try:
+        entries = vault.search(query, master_password)
+    except VaultNotInitializedError:
+        _fail("Vault is not initialized. Run 'apass init' first.")
+    except WrongPasswordError:
+        _fail("Wrong password")
+
+    typer.echo(f"Found {len(entries)} entries matching '{query}':")
+    for i, entry in enumerate(entries, start=1):
+        typer.echo(f"  {entry}")
 
 
 @app.command()
@@ -239,8 +258,8 @@ def _edit_note(entry_name: str) -> str | None:
     return "\n".join(lines).strip()
 
 
-def _ask_user_choice(name: str, entries: list[PasswordEntry]) -> PasswordEntry:
-    typer.echo(f"Found {len(entries)} entries matching '{name}':\n")
+def _ask_user_choice(query: str, entries: list[PasswordEntry]) -> PasswordEntry:
+    typer.echo(f"Found {len(entries)} entries matching '{query}':\n")
     for i, entry in enumerate(entries, start=1):
         typer.echo(f"  {i}: {entry}")
     typer.echo()

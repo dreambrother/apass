@@ -111,6 +111,16 @@ def test_search_multiple_entries(initialized_vault: Vault, master_password: str)
     assert [e.name for e in entries] == ["Example1", "example2", "example_3", "Some example", "fooexamplebar"]
 
 
+def test_search_empty_string(initialized_vault: Vault, master_password: str) -> None:
+    initialized_vault.save("example1", "", "passwd1", master_password)
+    initialized_vault.save("2pass", "", "passwd2", master_password)
+    initialized_vault.save("service-3", "", "passwd3", master_password)
+
+    entries = initialized_vault.search("", master_password)
+
+    assert [e.name for e in entries] == ["example1", "2pass", "service-3"]
+
+
 def test_search_no_entries(initialized_vault: Vault, master_password: str) -> None:
     initialized_vault.save("some pass 1", "", "passwd1", master_password)
     initialized_vault.save("some pass 2", "", "passwd2", master_password)

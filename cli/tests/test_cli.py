@@ -249,6 +249,49 @@ def test_get_fails_on_wrong_password() -> None:
     assert "Wrong password" in result.output
 
 
+def test_list_with_query() -> None:
+    entries = [
+        PasswordEntry(name="first.com", password="pass1", login="user1"),
+        PasswordEntry(name="first.net", password="pass2", login=""),
+    ]
+
+    mock_vault = MagicMock()
+    mock_vault.search.return_value = entries
+
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(app, ["list", "first"], input="master123\n\n")
+
+    print(result.output)
+    assert result.exit_code == 0
+    assert "Found 2 entries matching 'first'" in result.output
+    assert "first.com/user1" in result.output
+    assert "first.net" in result.output
+
+
+def test_list_emptry_query() -> None:
+    entries = [
+        PasswordEntry(name="first.com", password="pass1", login=""),
+        PasswordEntry(name="second.net", password="pass2", login=""),
+        PasswordEntry(name="third.ru", password="pass3", login="user3"),
+    ]
+
+    mock_vault = MagicMock()
+    mock_vault.search.return_value = entries
+
+    with (
+        patch("apass.cli._get_vault", return_value=mock_vault),
+    ):
+        result = runner.invoke(app, ["list"], input="master123\n\n")
+
+    assert result.exit_code == 0
+    assert "Found 3 entries matching ''" in result.output
+    assert "first.com" in result.output
+    assert "second.net" in result.output
+    assert "third.ru/user3" in result.output
+
+
 def test_save_prompts_for_passwords_and_stores() -> None:
     mock_vault = MagicMock()
     with (

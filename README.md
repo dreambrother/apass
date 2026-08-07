@@ -14,6 +14,7 @@ A dead-simple cross-platform **A**nother **Pass**word manager.
 - [x] Create
 - [x] Get
 - [x] Save
+- [x] List
 - [x] Remove (moves entry to Recycle Bin)
 - [x] Restore (recover entry from Recycle Bin)
 - [x] Cloud sync (Google Drive, Yandex Disk)

@@ -240,6 +240,7 @@ def test_sync_run_both_exist_merges_and_uploads() -> None:
     mock_vault = MagicMock()
     mock_vault.merge.return_value = MergeResult(
         added=["gmail"],
+        added_to_remote=["local_only_service"],
         updated=["github"],
         trashed=["oldaccount"],
         added_to_trash=["dead_service"],
@@ -268,6 +269,7 @@ def test_sync_run_both_exist_merges_and_uploads() -> None:
     assert result.exit_code == 0
     assert "Synced with Google Drive" in result.output
     assert "new_file_id" in result.output
+    assert "Added to remote: local_only_service" in result.output
     assert "Added from remote: gmail" in result.output
     assert "Updated: github" in result.output
     assert "Trashed: oldaccount" in result.output

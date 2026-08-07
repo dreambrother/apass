@@ -82,7 +82,10 @@ def test_merge_disjoint_entries(kp_factory: Callable[[], PyKeePass]) -> None:
 
     result = merge_dbs(local, remote)
 
-    assert result == MergeResult(added=["remote1/user3", "remote2/user4"])
+    assert result == MergeResult(
+        added=["remote1/user3", "remote2/user4"],
+        added_to_remote=["local1/user1", "local2/user2"],
+    )
     alive_entries = keepass.find_all_alive(local)
     assert len(alive_entries) == 4
     assert all([
@@ -323,6 +326,30 @@ def test_merge_uuid_match_with_duplicate_in_local(
     assert passwords == ["stale-pass"]
 
 
+def test_merge_added_to_remote_only_local_entries(
+    kp_factory: Callable[[], PyKeePass],
+) -> None:
+    """Entries that exist only locally are reported as added to remote;
+    entries present on both sides or only on remote are not."""
+    local = kp_factory()
+    local_only = local.add_entry(local.root_group, "local_only", "user1", "pass1")
+    shared = local.add_entry(local.root_group, "shared", "user2", "pass2")
+
+    remote = kp_factory()
+    shared_remote = remote.add_entry(remote.root_group, "shared", "user2", "pass2")
+    _set_uuid(shared_remote, shared.uuid)
+    _bump_mtime(shared_remote)
+    remote.add_entry(remote.root_group, "remote_only", "user3", "pass3")
+
+    result = merge_dbs(local, remote)
+
+    assert result == MergeResult(
+        added=["remote_only/user3"],
+        updated=["shared/user2"],
+        added_to_remote=["local_only/user1"],
+    )
+
+
 def test_merge_local_trashed_with_equal_mtime_noop(
     kp_factory: Callable[[], PyKeePass],
 ) -> None:
@@ -346,7 +373,7 @@ def test_merge_local_trashed_with_equal_mtime_noop(
 def test_merge_empty_remote_keeps_local_unchanged(
     kp_factory: Callable[[], PyKeePass],
 ) -> None:
-    """Empty remote: local is not modified, MergeResult is empty."""
+    """Empty remote: local is not modified; local-only entries are reported as added to remote."""
     local = kp_factory()
     local.add_entry(local.root_group, "serv1", "user1", "pass1")
     local.add_entry(local.root_group, "serv2", "user2", "pass2")
@@ -357,7 +384,7 @@ def test_merge_empty_remote_keeps_local_unchanged(
 
     result = merge_dbs(local, remote)
 
-    assert result == MergeResult()
+    assert result == MergeResult(added_to_remote=["serv1/user1", "serv2/user2"])
     assert [e.title for e in keepass.find_all_alive(local)] == local_alive
     assert [e.title for e in keepass.find_all_trashed(local)] == local_trashed
 

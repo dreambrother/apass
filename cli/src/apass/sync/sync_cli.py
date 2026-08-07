@@ -192,6 +192,8 @@ def _print_merge_result(result: MergeResult | None, header: str | None = None) -
     if result is None:
         typer.echo("No changes to sync")
         return
+    if result.added_to_remote:
+        typer.echo(f"  Added to remote: {', '.join(result.added_to_remote)}")
     if result.added:
         typer.echo(f"  Added from remote: {', '.join(result.added)}")
     if result.updated:

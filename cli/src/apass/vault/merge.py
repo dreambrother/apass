@@ -1,15 +1,22 @@
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Callable, Iterable, cast
+from typing import cast
 
 from pykeepass import Entry, Group, PyKeePass
 
-from apass.vault.keepass import find_all_trashed, get_all_entries, get_title
+from apass.vault.keepass import (
+    find_all_alive,
+    find_all_trashed,
+    get_all_entries,
+    get_title,
+)
 
 
 @dataclass
 class MergeResult:
     added: list[str] = field(default_factory=list)
+    added_to_remote: list[str] = field(default_factory=list)
     updated: list[str] = field(default_factory=list)
     trashed: list[str] = field(default_factory=list)
     added_to_trash: list[str] = field(default_factory=list)
@@ -30,7 +37,13 @@ def merge_dbs(
     drop = _mutate(dry_run, lambda entry: local.delete_entry(entry))
     rename = _mutate(dry_run, lambda entry, title: setattr(entry, "title", title))
 
-    result = MergeResult()
+    # Entries that exist only locally (by title/username) are pushed to the
+    # remote vault when the merged local DB is uploaded after the merge.
+    remote_titles = {_format_title(e) for e in get_all_entries(remote)}
+    added_to_remote = [
+        _format_title(e) for e in find_all_alive(local) if _format_title(e) not in remote_titles
+    ]
+    result = MergeResult(added_to_remote=added_to_remote)
 
     for remote_entry in get_all_entries(remote):
         local_entry = local_entries.get(remote_entry.uuid)

@@ -1,0 +1,11 @@
+# Dev container image: base python image + poetry + project dependencies baked in.
+# Building the image does the heavy work once (pipx install poetry, poetry install),
+# so container creation is fast and does not depend on the network.
+FROM mcr.microsoft.com/devcontainers/python:dev-3.14
+
+USER vscode
+RUN pipx install poetry
+
+COPY --chown=vscode pyproject.toml poetry.lock /workspace/cli/
+WORKDIR /workspace/cli
+RUN poetry install --no-root --no-interaction

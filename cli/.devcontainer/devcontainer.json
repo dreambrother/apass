@@ -1,12 +1,15 @@
 {
   "name": "Python dev container",
-  "image": "mcr.microsoft.com/devcontainers/python:dev-3.14",
-  "postCreateCommand": "pipx install poetry && cd ${containerWorkspaceFolder} && poetry install",
+  "build": {
+    "dockerfile": "Containerfile",
+    "context": ".."
+  },
+  "postCreateCommand": "cd ${containerWorkspaceFolder} && poetry install --no-interaction",
   "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspace,type=bind",
   "workspaceFolder": "/workspace/cli",
   "mounts": [
     "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached",
-    "source=${localEnv:SSH_AUTH_SOCK},target=/tmp/ssh-agent.socket,type=bind",
+    "source=${localEnv:SSH_AUTH_SOCK},target=/tmp/ssh-agent.socket,type=bind"
   ],
   "containerEnv": {
     "SSH_AUTH_SOCK": "/tmp/ssh-agent.socket"
